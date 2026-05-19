@@ -1,0 +1,13 @@
+# Build output
+build/
+dist/
+
+# NetBeans private settings (specifici del tuo PC)
+nbproject/private/
+
+# File di configurazione utente (coordinate, tempi salvati)
+autofill_settings.properties
+
+# OS
+.DS_Store
+Thumbs.db
