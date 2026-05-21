@@ -1,111 +1,110 @@
 # AutoFill Suite
 
-Applicazione desktop Java per l'automazione della compilazione di form web, progettata per ambienti industriali/logistici che richiedono la registrazione massiva di etichette tramite barcode scanner.
+A Java desktop tool that automates repetitive data-entry workflows involving barcode/QR scanners and web-based forms, built for industrial and logistics environments.
 
-> **Sviluppato da:** Sid Ahmed Riri
-> **Strumenti:** Java 8+, Apache NetBeans 29
-> **Metodologia:** Progettato e strutturato dall'autore, implementato con assistenza di AI (Claude by Anthropic)
+**Author:** Sid Ahmed Riri — Java 8+, Apache NetBeans
 
 ---
 
-## Funzionalità
+## Features
 
-### 📋 Tab Register — Registrazione etichette
-Automatizza la compilazione seriale di form web con codici a barre:
-- Acquisizione del codice tramite **barcode scanner** (campo di scan dedicato)
-- Generazione automatica del **range sequenziale** (es. `ABC001 → ABC010`)
-- Inserimento automatico nel browser via `java.awt.Robot`: doppio click sulla casella, incolla codice, TAB, incolla batch, ENTER
-- Ritmo tra cicli configurabile: **fisso** o **range casuale** (per simulare comportamento umano)
-- **Fail-safe**: rileva se il mouse viene spostato manualmente e blocca l'automazione
-- Progress bar con stato in tempo reale
-- Tutte le impostazioni salvate automaticamente alla chiusura
+### 📋 Tab Register — Batch label registration
+Automates serial form filling with barcodes:
+- Barcode input via **dedicated scan field**
+- Automatic **sequential range** generation (e.g. `ABC001 → ABC010`)
+- Browser automation via `java.awt.Robot`: double-click field, paste code, TAB, paste batch, ENTER
+- Configurable cycle timing: **fixed** or **random range** (to simulate human behaviour)
+- **Fail-safe**: stops automation immediately if the mouse is moved manually
+- Real-time progress bar
+- All settings saved automatically on close
 
-### 🖨️ Tab Print — Stampa automatica
-Automatizza click ripetuti su un pulsante di stampa:
-- Configura numero di click e pausa tra uno e l'altro
-- Utile per stampe batch senza intervento manuale
+### 🖨️ Tab Print — Auto print
+Automates repeated clicks on a print button:
+- Configurable click count and pause between each
+- Useful for batch printing without manual intervention
 
-### 📷 Tab Dual Scan — Doppia scansione
-Flusso ottimizzato per la registrazione a due QR code:
-1. Scanner spara **QR1** → TAB automatico → focus su QR2
-2. Scanner spara **QR2** → robot parte automaticamente
-3. Robot compila il form nel browser: QR1 → TAB → QR2 → TAB → ENTER
-4. **Verifica salvataggio**: legge la casella via clipboard (CTRL+A+C) — se vuota il salvataggio è confermato, altrimenti segnala errore
-5. Focus torna sulla casella QR1 Java → pronto per la coppia successiva
-- Contatore cicli completati con successo
+### 📷 Tab Dual Scan — Dual QR scan
+Optimised flow for registering two QR codes as a pair:
+1. Scan **QR1** → automatic TAB → focus moves to QR2
+2. Scan **QR2** → robot starts automatically
+3. Robot fills the browser form: QR1 → TAB → QR2 → TAB → ENTER
+4. **Save verification**: reads the field via clipboard (CTRL+A+C) — if empty, save is confirmed; otherwise signals an error
+5. Focus returns to QR1 field → ready for the next pair
+- Counter tracks successfully completed cycles
 
 ---
 
-## Architettura
+## Architecture
 
 ```
 src/
 └── app/
-    ├── Main.java                  # Entry point, look & feel di sistema
+    ├── Main.java                  # Entry point, system look & feel
     ├── core/
-    │   ├── RobotEngine.java       # Singleton wrapper su java.awt.Robot
-    │   ├── AutomationTask.java    # Template Method per task asincroni con fail-safe
-    │   └── CoordMemorizer.java    # Acquisizione coordinate con countdown
+    │   ├── RobotEngine.java       # Singleton wrapper around java.awt.Robot
+    │   ├── AutomationTask.java    # Template Method for async tasks with fail-safe
+    │   └── CoordMemorizer.java    # Coordinate capture with countdown
     ├── ui/
-    │   ├── MainWindow.java        # JFrame principale, always-on-top
-    │   ├── AppTheme.java          # Factory centralizzata per componenti e colori
-    │   ├── TabRegistrazione.java  # Tab 1 — registrazione etichette
-    │   ├── TabStampa.java         # Tab 2 — stampa automatica
-    │   └── TabDualScan.java       # Tab 3 — doppia scansione QR
+    │   ├── MainWindow.java        # Main JFrame, always-on-top
+    │   ├── AppTheme.java          # Centralised Factory for components and colours
+    │   ├── TabRegistrazione.java  # Tab 1 — label registration
+    │   ├── TabStampa.java         # Tab 2 — auto print
+    │   └── TabDualScan.java       # Tab 3 — dual QR scan
     └── config/
-        └── SettingsManager.java   # Persistenza impostazioni su file .properties
+        └── SettingsManager.java   # Settings persistence via .properties file
 ```
 
-**Pattern utilizzati:**
+**Design patterns applied:**
 - **Singleton** — `RobotEngine`, `SettingsManager`
-- **Template Method** — `AutomationTask` (logica del ciclo asincrono con fail-safe, countdown e progress riusabili)
-- **MVC** — ogni tab separa UI, logica e configurazione
+- **Template Method** — `AutomationTask` (reusable async cycle logic with fail-safe, countdown and progress bar)
+- **Factory** — `AppTheme` (centralised UI component creation)
+- **MVC** — each tab separates UI, logic and configuration
 
 ---
 
-## Requisiti
+## Requirements
 
-- **Java 8** o superiore
-- Sistema operativo: Windows, Linux, macOS (con accesso al display)
-- Permessi per `java.awt.Robot` (richiede accesso all'input del sistema)
+- **Java 8** or higher
+- OS: Windows, Linux, macOS (display access required)
+- `java.awt.Robot` permissions (requires system input access)
 
 ---
 
-## Come aprire il progetto
+## Build & Run
 
 ### Apache NetBeans
 1. `File > Open Project`
-2. Seleziona la cartella `AutoFillSuite`
-3. Il progetto viene riconosciuto automaticamente
-4. **F6** per compilare ed eseguire
+2. Select the `AutoFillSuite` folder
+3. Project is recognised automatically
+4. Press **F6** to build and run
 
-### Da terminale (Ant)
+### Terminal (Ant)
 ```bash
-ant run        # compila ed esegue
+ant run        # build and run
 ant jar        # produce dist/AutoFillSuite.jar
-ant clean      # pulisce gli artefatti
+ant clean      # clean build artifacts
 ```
 
-### JAR standalone
+### Standalone JAR
 ```bash
 java -jar dist/AutoFillSuite.jar
 ```
 
 ---
 
-## Utilizzo
+## Usage
 
-1. **Avvia** l'applicazione — la finestra rimane sempre in primo piano
-2. Scegli il tab in base all'operazione
-3. Clicca **📍 Memo** e posiziona il mouse sulla casella del form nel browser entro N secondi — le coordinate vengono memorizzate
-4. (Solo Register) Spara il barcode con lo scanner nel campo Etichetta, inserisci il Batch
-5. Clicca **▶ AVVIA** — l'app compila automaticamente il form per ogni ciclo
-6. Per interrompere: clicca **⏹ STOP** o sposta il mouse (fail-safe automatico)
+1. **Launch** the app — the window stays always on top
+2. Select the tab for your operation
+3. Click **📍 Memo** and move the mouse to the target field in the browser within N seconds — coordinates are saved
+4. (Register only) Scan the barcode into the Label field, enter the Batch
+5. Click **▶ START** — the app fills the form automatically for each cycle
+6. To stop: click **⏹ STOP** or move the mouse (automatic fail-safe)
 
-Le impostazioni (coordinate, tempi, quantità) vengono salvate automaticamente e ripristinate al prossimo avvio.
+Settings (coordinates, timing, quantities) are saved automatically and restored on next launch.
 
 ---
 
-## Licenza
+## License
 
-MIT License — libero utilizzo, modifica e distribuzione con attribuzione.
+MIT License — free to use, modify and distribute with attribution.
