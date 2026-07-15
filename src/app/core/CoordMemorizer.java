@@ -5,32 +5,39 @@ import java.awt.*;
 import java.util.function.Consumer;
 
 /**
- * Utility that waits N seconds then captures the current mouse position.
- * Used to let the user move the mouse over a target before the coordinates are saved.
+ * Captures a screen coordinate after a countdown: the operator has a few
+ * seconds to place the mouse on the target, then the position is read.
+ * The status label is optional — callers with only a coord label get the
+ * countdown there instead. Colors are the caller's business.
  */
-public class CoordMemorizer {
+public final class CoordMemorizer {
 
-    public static void avvia(int seconds, JButton triggerBtn, JLabel coordLabel,
-                             JLabel statusLabel, Consumer<Point> onDone) {
+    private CoordMemorizer() {}
+
+    public static void capture(int seconds, JButton triggerBtn, JLabel coordLabel,
+                               JLabel statusLabel, Consumer<Point> onDone) {
         triggerBtn.setEnabled(false);
         new Thread(() -> {
             try {
                 for (int i = seconds; i > 0; i--) {
                     final int s = i;
-                    SwingUtilities.invokeLater(() -> statusLabel.setText("Move mouse... " + s + "s"));
+                    SwingUtilities.invokeLater(() -> {
+                        JLabel target = (statusLabel != null) ? statusLabel : coordLabel;
+                        target.setText("Posiziona il mouse... " + s + "s");
+                    });
                     Thread.sleep(1000);
                 }
-                Point p = MouseInfo.getPointerInfo().getLocation();
+                final Point p = MouseInfo.getPointerInfo().getLocation();
                 SwingUtilities.invokeLater(() -> {
-                    coordLabel.setText("X:" + p.x + " Y:" + p.y);
-                    coordLabel.setForeground(new Color(0, 140, 0));
-                    statusLabel.setText("Coordinates saved.");
+                    coordLabel.setText("X:" + p.x + "  Y:" + p.y);
+                    if (statusLabel != null) statusLabel.setText("Coordinate salvate.");
                     onDone.accept(p);
                     triggerBtn.setEnabled(true);
                 });
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                SwingUtilities.invokeLater(() -> triggerBtn.setEnabled(true));
             }
-        }).start();
+        }, "coord-capture").start();
     }
 }

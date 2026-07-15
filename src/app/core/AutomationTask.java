@@ -6,39 +6,43 @@ import java.awt.*;
 /**
  * Abstract base for all automation tasks.
  * Template Method pattern: initial delay → loop → completion → cleanup.
- * Subclasses only need to implement the cycle logic.
+ * Subclasses only implement the cycle logic.
+ *
+ * RULE: never a modal dialog from a task. A modal under an always-on-top
+ * window deadlocks the whole app (the dialog blocks input, the window hides
+ * it). Fail-safe and errors reach the UI through EDT hooks instead.
  */
 public abstract class AutomationTask implements Runnable {
 
     protected volatile boolean running = true;
     protected final RobotEngine robot = RobotEngine.getInstance();
 
-    protected abstract boolean eseguiCiclo(int index) throws Exception;
-    protected abstract int getTotale();
-    protected abstract int getAttesaIniziale();
-    protected abstract void onCompletato();
+    protected abstract boolean executeCycle(int index) throws Exception;
+    protected abstract int getTotal();
+    protected abstract int getStartDelay();
+    protected abstract void onCompleted();
     protected abstract void onFinally();
-    protected abstract void aggiornaProgresso(int current, int total);
+    protected abstract void updateProgress(int current, int total);
 
     @Override
     public final void run() {
         try {
-            int wait = getAttesaIniziale();
+            int wait = getStartDelay();
             for (int i = wait; i > 0 && running; i--) {
                 final int sec = i;
-                SwingUtilities.invokeLater(() -> mostraCountdown(sec));
+                SwingUtilities.invokeLater(() -> showCountdown(sec));
                 Thread.sleep(1000);
             }
 
-            int total = getTotale();
+            int total = getTotal();
             for (int i = 0; i < total && running; i++) {
-                if (!eseguiCiclo(i)) break;
-                aggiornaProgresso(i + 1, total);
+                if (!executeCycle(i)) break;
+                updateProgress(i + 1, total);
             }
 
             if (running) {
                 SwingUtilities.invokeLater(() -> {
-                    onCompletato();
+                    onCompleted();
                     Toolkit.getDefaultToolkit().beep();
                 });
             }
@@ -47,7 +51,8 @@ public abstract class AutomationTask implements Runnable {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             e.printStackTrace();
-            SwingUtilities.invokeLater(() -> mostraErrore(e.getMessage()));
+            Toolkit.getDefaultToolkit().beep();
+            SwingUtilities.invokeLater(() -> showError(e.getMessage()));
         } finally {
             running = false;
             SwingUtilities.invokeLater(this::onFinally);
@@ -56,24 +61,23 @@ public abstract class AutomationTask implements Runnable {
 
     public void stop() { running = false; }
 
-    protected void mostraCountdown(int sec) {}
+    protected void showCountdown(int sec) {}
 
-    protected void mostraErrore(String msg) {
-        JOptionPane.showMessageDialog(null, "Error: " + msg, "Error", JOptionPane.ERROR_MESSAGE);
+    /** UI hook, called on the EDT — status bar / banner, never a popup. */
+    protected void showError(String msg) {
+        System.err.println("[AutomationTask] " + msg);
     }
 
-    protected boolean isMouseMoved(java.awt.Point target) {
+    protected boolean isMouseMoved(Point target) {
         return robot.isMouseMoved(target);
     }
 
-    protected void attivaFailSafe(String message) {
+    protected void triggerFailSafe(String message) {
         running = false;
         Toolkit.getDefaultToolkit().beep();
-        SwingUtilities.invokeLater(() ->
-            JOptionPane.showMessageDialog(null,
-                "⚠️ FAIL-SAFE: " + message,
-                "Automation stopped",
-                JOptionPane.WARNING_MESSAGE)
-        );
+        SwingUtilities.invokeLater(() -> onFailSafe(message));
     }
+
+    /** UI hook, called on the EDT — banner + status, never a popup. */
+    protected void onFailSafe(String message) {}
 }

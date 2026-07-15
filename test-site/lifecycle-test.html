@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<!--
+  MOCK PORTAL — banco di prova offline per AutoFillSuite. Riproduce il
+  COMPORTAMENTO da automatizzare (ordine campi/TAB, semantica di SAVE, export
+  CSV pipe-separated con storico append-only), ma è volutamente DIVERSO dal
+  portale reale: stile neutro proprio, codici e lotti inventati, nomi colonna
+  generici. Nessun asset, codice, identificativo o dato del portale vero è
+  incluso. Serve solo a collaudare l'app end-to-end senza toccare la produzione.
+-->
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Mock Registration Portal — AutoFillSuite test harness</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Roboto, Arial, sans-serif; }
+    body { background: #f5f5f5; }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: #fff; border-bottom: 1px solid #ddd;
+      display: flex; align-items: center; padding: 0 20px; height: 52px; gap: 16px;
+    }
+    .topbar .logo { font-size: 22px; color: #5b53a8; font-weight: 900; letter-spacing: -1px; }
+    .topbar .breadcrumb { font-size: 13px; color: #888; }
+    .topbar .breadcrumb span { color: #333; font-weight: 500; }
+    .topbar .user { margin-left: auto; font-size: 13px; color: #555; display: flex; align-items: center; gap: 8px; }
+    .avatar {
+      width: 32px; height: 32px; background: #5b53a8; border-radius: 50%;
+      color: #fff; font-weight: 700; display: flex; align-items: center;
+      justify-content: center; font-size: 13px;
+    }
+
+    /* ── Sidebar ── */
+    .layout { display: flex; min-height: calc(100vh - 52px); }
+    .sidebar { width: 180px; background: #fff; border-right: 1px solid #ddd; padding: 16px 0; flex-shrink: 0; }
+    .sidebar .section {
+      font-size: 11px; font-weight: 700; color: #aaa; padding: 8px 16px 4px;
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .sidebar .item { font-size: 13px; color: #555; padding: 8px 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .sidebar .item.active { background: #eceaf6; color: #5b53a8; font-weight: 600; border-left: 3px solid #5b53a8; }
+
+    /* ── Main ── */
+    .main { flex: 1; padding: 28px 32px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+    .card { background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 20px 24px 24px; }
+    .card h2 { font-size: 16px; font-weight: 600; color: #222; margin-bottom: 18px; }
+
+    /* ── Fields (Vuetify style) ── */
+    .field { position: relative; margin-bottom: 20px; }
+    .field label {
+      position: absolute; top: -9px; left: 10px; background: #fff; padding: 0 4px;
+      font-size: 11px; color: #888; pointer-events: none;
+    }
+    .field input, .field select {
+      width: 100%; border: 1px solid #ccc; border-radius: 4px; padding: 12px 14px;
+      font-size: 14px; color: #333; outline: none; transition: border-color .2s; background: #fff;
+    }
+    .field input:focus, .field select:focus {
+      border-color: #5b53a8; box-shadow: 0 0 0 2px rgba(91,83,168,.15);
+    }
+    .field input::placeholder { color: #bbb; }
+
+    /* ── Buttons ── */
+    .btn {
+      border: none; border-radius: 4px; padding: 10px 22px; font-size: 13px;
+      font-weight: 600; cursor: pointer; letter-spacing: .3px; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-green { background: #5b53a8; color: #fff; }
+    .btn-red   { background: #e53935; color: #fff; }
+    .btn-blue  { background: #7b74c4; color: #fff; }
+    .btn-grey  { background: #546e7a; color: #fff; }
+    .btn-row   { display: flex; justify-content: flex-end; margin-top: 4px; }
+    .btn-row.split { justify-content: space-between; align-items: center; }
+    .btn-hint  { font-size: 11px; color: #aaa; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px; background: #323232; color: #fff;
+      padding: 12px 22px; border-radius: 5px; font-size: 13px; opacity: 0;
+      transition: opacity .3s; z-index: 999; max-width: 340px;
+    }
+    #toast.show { opacity: 1; }
+    #toast.success { background: #4a4488; }
+    #toast.error   { background: #c62828; }
+
+    /* ── Log ── */
+    #log-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+    #log-table th {
+      background: #f0f0f0; text-align: left; padding: 7px 10px;
+      font-weight: 600; color: #555; border-bottom: 2px solid #ddd;
+    }
+    #log-table td { padding: 7px 10px; border-bottom: 1px solid #eee; color: #333; }
+    #log-table tr:hover td { background: #fafafa; }
+    #log-table .badge {
+      background: #eceaf6; color: #4a4488; font-size: 11px;
+      padding: 2px 8px; border-radius: 10px; font-weight: 600;
+    }
+    #log-table .badge.print { background: #fff3e0; color: #e65100; }
+    #log-table .badge.wait  { background: #eceff1; color: #546e7a; }
+    .log-scroll { max-height: 300px; overflow-y: auto; }
+    .log-empty { text-align: center; color: #aaa; padding: 20px; font-size: 13px; }
+
+    /* ── TEST banner + knobs ── */
+    .test-banner {
+      background: #fff3e0; border: 1.5px dashed #ff8f00; border-radius: 5px;
+      padding: 9px 16px; font-size: 12px; color: #e65100; margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .test-banner .toggle {
+      margin-left: auto; background: #ff8f00; color: #fff; border: 0; border-radius: 4px;
+      padding: 4px 12px; font-size: 11px; font-weight: 700; cursor: pointer;
+    }
+    .knobs {
+      background: #fff; border: 1.5px dashed #ff8f00; border-radius: 5px;
+      padding: 14px 16px; margin-bottom: 18px; display: none;
+    }
+    .knobs.open { display: block; }
+    .knobs h3 { font-size: 12px; color: #e65100; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
+    .knob { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; font-size: 12.5px; color: #555; }
+    .knob input[type=number] { width: 80px; padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+    .knob input[type=checkbox] { transform: scale(1.15); }
+    .knob b { color: #333; }
+    .knob-row { display: flex; gap: 8px; margin-top: 10px; }
+    .knob-row .btn { padding: 6px 14px; font-size: 12px; }
+    .counter-badge {
+      display: inline-block; background: #5b53a8; color: #fff; border-radius: 10px;
+      padding: 1px 10px; font-size: 12px; font-weight: 700; margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="logo">◆ MOCK</div>
+  <div class="breadcrumb">AutoFillSuite › <span>test harness</span></div>
+  <div class="user">
+    <div class="avatar">A</div>
+    Operatore
+  </div>
+</div>
+
+<div class="layout">
+
+  <div class="sidebar">
+    <div class="section">Menu</div>
+    <div class="item">📊 Reports</div>
+    <div class="item">🔧 Tools</div>
+    <div class="section">Supplier</div>
+    <div class="item active">🔗 Registration</div>
+  </div>
+
+  <div class="main">
+
+    <div class="test-banner">
+      ⚠️ <strong>PAGINA DI TEST</strong> — Sosia offline del portale reale.
+      Le registrazioni restano in questa pagina, non sul server.
+      <button class="toggle" onclick="toggleKnobs()">Simulazione guasti</button>
+    </div>
+
+    <!-- knobs: nascosti di default, così le card restano fedeli al sito vero -->
+    <div class="knobs" id="knobs">
+      <h3>Simulazione guasti — per collaudare la verifica dell'app</h3>
+      <div class="knob">
+        <input type="number" id="lagMs" value="0" min="0" step="500">
+        <span><b>Lag server (ms)</b> — la riga entra nell'export solo dopo questo ritardo
+          (l'app deve assorbirlo con i ritentativi)</span>
+      </div>
+      <div class="knob">
+        <input type="number" id="lossPct" value="0" min="0" max="100">
+        <span><b>Perdi registrazioni (%)</b> — l'app deve segnalarle come <b>MANCANTE</b></span>
+      </div>
+      <div class="knob">
+        <input type="number" id="corruptPct" value="0" min="0" max="100">
+        <span><b>Corrompi lotto (%)</b> — l'app deve segnalare <b>LOTTO ERRATO</b></span>
+      </div>
+      <div class="knob">
+        <input type="checkbox" id="printRow">
+        <span><b>Riga di stampa prima della registrazione</b> (modello append del sito vero) —
+          insieme a "perdi" produce <b>NON REGISTRATA</b></span>
+      </div>
+      <div class="knob-row">
+        <button class="btn btn-grey" onclick="seed()">Seed storico (300 righe)</button>
+        <button class="btn btn-red" onclick="clearAll()">Svuota registro</button>
+      </div>
+    </div>
+
+    <div class="grid">
+
+      <!-- ── Update Batch Number for item ── -->
+      <div class="card">
+        <h2>Register item — assign batch</h2>
+
+        <div class="field">
+          <label>item Serial Number</label>
+          <input type="text" id="serial" placeholder="DEMO-SN-000123" autocomplete="off" tabindex="1">
+        </div>
+
+        <div class="field">
+          <label>item Batch</label>
+          <input type="text" id="batch" placeholder="" autocomplete="off" tabindex="2">
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-green" id="btn-save" tabindex="3" onclick="save()">SAVE</button>
+        </div>
+      </div>
+
+      <!-- ── Print item Label ── -->
+      <div class="card">
+        <h2>Print label</h2>
+
+        <div class="field">
+          <label>Choose item type</label>
+          <select id="itemType" tabindex="10">
+            <option>Demo A: DEMO-AAA-001</option>
+            <option>Demo B: DEMO-BBB-002</option>
+            <option>Demo C: DEMO-CCC-003</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Numbering step (does NOT print more — 1 label per click)</label>
+          <input type="number" id="printQty" value="1" min="1" max="100" tabindex="11">
+        </div>
+
+        <div class="field">
+          <label>Printer IP address</label>
+          <input type="text" value="demo-device.local" tabindex="12">
+        </div>
+
+        <!-- ⬇ LA PARTE NUOVA: il bottone che l'app clicca per verificare ── -->
+        <div class="btn-row split">
+          <button class="btn btn-grey" id="btn-export" onclick="exportCsv()">⬇ EXPORT CSV</button>
+          <button class="btn btn-blue" onclick="printLabel()">⬡ START PRINTING</button>
+        </div>
+        <div class="btn-hint" style="margin-top:6px">
+          Export CSV scarica <b>demo-export.csv</b> (DemoSerial|DemoBatch, tutto lo storico) —
+          è la coordinata che l'app memorizza per la verifica.
+        </div>
+      </div>
+
+      <!-- ── Delete item ── -->
+      <div class="card">
+        <h2>Delete item</h2>
+        <div class="field">
+          <label>item Serial Number</label>
+          <input type="text" placeholder="" tabindex="20">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-red">DELETE</button>
+        </div>
+      </div>
+
+      <!-- ── Registro ── -->
+      <div class="card">
+        <h2>
+          Registro registrazioni (sessione)
+          <span class="counter-badge" id="counter">0</span>
+        </h2>
+        <div class="log-scroll">
+          <div class="log-empty" id="log-empty">Nessuna registrazione ancora.</div>
+          <table id="log-table" style="display:none">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>item Serial Number</th>
+                <th>item Batch</th>
+                <th>Ora</th>
+                <th>Stato</th>
+              </tr>
+            </thead>
+            <tbody id="log-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /grid -->
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── stato: append-only, come il sito vero ────────────────────────────────
+  // ogni riga = { s: serial, l: lot, t: ora }. lot vuoto = stampata, non registrata.
+  var rows    = [];   // ordine cronologico: è l'ordine dell'export
+  var pending = [];   // righe in attesa del "flush" del server (lag)
+  var printSeq = 0;   // il portale reale fa saltare la numerazione: qui lo replichiamo
+
+  var el = function (id) { return document.getElementById(id); };
+
+  function knobs() {
+    return {
+      lagMs:      parseInt(el("lagMs").value, 10)      || 0,
+      lossPct:    parseInt(el("lossPct").value, 10)    || 0,
+      corruptPct: parseInt(el("corruptPct").value, 10) || 0,
+      printRow:   el("printRow").checked
+    };
+  }
+
+  window.toggleKnobs = function () {
+    el("knobs").classList.toggle("open");
+  };
+
+  // ── SAVE: identico al sito vero ──────────────────────────────────────────
+  // ENTER nel campo batch NON salva: il pulsante è type="button", quindi serve
+  // TAB fino al pulsante e poi ENTER. È esattamente il flusso del robot.
+  window.save = function () {
+    var serial = el("serial").value.trim();
+    var batch  = el("batch").value.trim();
+
+    if (!serial) { toast("⚠ Inserisci il item Serial Number", "error"); return; }
+    if (!batch)  { toast("⚠ Inserisci il item Batch", "error"); return; }
+
+    var k = knobs();
+
+    // la stampa è un evento precedente: riga col lotto vuoto, subito visibile
+    if (k.printRow) {
+      push(serial, "");
+    }
+
+    if (Math.random() * 100 < k.lossPct) {
+      toast("Registrazione persa (simulata): " + serial, "error");
+      resetFields();
+      return;
+    }
+
+    var saved = batch;
+    if (Math.random() * 100 < k.corruptPct) {
+      saved = batch + "#SIM-ERR";
+    }
+
+    if (k.lagMs > 0) {
+      pending.push({ s: serial, l: saved, due: Date.now() + k.lagMs });
+      toast("In coda sul server (" + k.lagMs + "ms): " + serial);
+      render();
+    } else {
+      push(serial, saved);
+      toast("✓ Salvato: " + serial, "success");
+    }
+
+    resetFields();
+  };
+
+  // il sito vero NON rimette il focus sul campo 1 — lo fa l'app Java
+  function resetFields() {
+    el("serial").value = "";
+    el("batch").value  = "";
+  }
+
+  // flush delle righe in lag: è ciò che l'app deve assorbire con un ritentativo
+  setInterval(function () {
+    var now = Date.now(), still = [];
+    for (var i = 0; i < pending.length; i++) {
+      if (pending[i].due <= now) {
+        push(pending[i].s, pending[i].l);
+      } else {
+        still.push(pending[i]);
+      }
+    }
+    if (still.length !== pending.length) {
+      pending = still;
+      render();
+    }
+  }, 200);
+
+  function push(serial, lot) {
+    rows.push({ s: serial, l: lot, t: new Date().toLocaleTimeString("it-IT") });
+    render();
+  }
+
+  // ── EXPORT CSV: quello che l'app clicca per verificare ───────────────────
+  // formato identico all'export vero: header, pipe, LF, tutto lo storico
+  window.exportCsv = function () {
+    var out = "DemoSerial|DemoBatch\n";
+    for (var i = 0; i < rows.length; i++) {
+      out += rows[i].s + "|" + rows[i].l + "\n";
+    }
+    var blob = new Blob([out], { type: "text/csv" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "demo-export.csv";           // Chrome rinomina in "demo-export (N).csv"
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    toast("Export: " + rows.length + " righe -> demo-export.csv", "success");
+  };
+
+  // ── stampa: appende righe col lotto vuoto (modello append del sito vero) ──
+  window.printLabel = function () {
+    // FAITHFUL TO THE REAL PORTAL, ON PURPOSE: the quantity field never prints
+    // more than one label. Any value above 1 only advances the numbering by
+    // that step (qty 2 -> serials 2,4,6,8...), still ONE row per click. This is
+    // the exact defect AutoFillSuite's print mode works around by keeping the
+    // field at 1 and clicking N times.
+    var step = parseInt(el("printQty").value, 10) || 1;
+    var type = el("itemType").value.split(":")[1].trim();
+    printSeq += step;                                   // the numbering jumps by the step
+    var n = String(1000 + printSeq).slice(-3);
+    rows.push({ s: type + "_2610900" + n, l: "", t: new Date().toLocaleTimeString("it-IT") });
+    render();
+    toast(step > 1
+        ? "🖨 1 etichetta (la casella salta la numerazione di " + step + ")"
+        : "🖨 1 etichetta stampata", "success");
+  };
+
+  // ── seed / reset ──────────────────────────────────────────────────────────
+  window.seed = function () {
+    var arts = ["DEMO-AAA-001", "DEMO-BBB-002", "DEMO-CCC-003"];
+    for (var i = 0; i < 300; i++) {
+      rows.push({
+        s: arts[i % 3] + "_26109" + String(10000 + i).slice(-5),
+        l: "9006" + String(100000000000 + i * 7),
+        t: "--:--:--"
+      });
+    }
+    render();
+    toast("Seed: +300 righe storiche", "success");
+  };
+
+  window.clearAll = function () {
+    rows = [];
+    pending = [];
+    printSeq = 0;
+    render();
+    toast("Registro svuotato");
+  };
+
+  // ── render ────────────────────────────────────────────────────────────────
+  function render() {
+    var body = el("log-body");
+    body.innerHTML = "";
+    var start = Math.max(0, rows.length - 40);          // solo le ultime 40 a video
+    for (var i = rows.length - 1; i >= start; i--) {    // più recenti in alto
+      var r = rows[i];
+      var tr = document.createElement("tr");
+      var badge = r.l === ""
+        ? '<span class="badge print">Stampata</span>'
+        : '<span class="badge">✓ Salvato</span>';
+      tr.innerHTML =
+        "<td>" + (i + 1) + "</td>" +
+        '<td style="font-family:monospace;font-size:11px">' + esc(r.s) + "</td>" +
+        '<td style="font-family:monospace">' + (r.l === "" ? "—" : esc(r.l)) + "</td>" +
+        "<td>" + r.t + "</td>" +
+        "<td>" + badge + "</td>";
+      body.appendChild(tr);
+    }
+    for (var j = 0; j < pending.length; j++) {
+      var p = pending[j];
+      var tp = document.createElement("tr");
+      tp.innerHTML =
+        "<td>—</td>" +
+        '<td style="font-family:monospace;font-size:11px">' + esc(p.s) + "</td>" +
+        '<td style="font-family:monospace">' + esc(p.l) + "</td>" +
+        "<td>—</td>" +
+        '<td><span class="badge wait">In coda (lag)</span></td>';
+      body.insertBefore(tp, body.firstChild);
+    }
+    el("counter").textContent = rows.length;
+    el("log-empty").style.display  = rows.length || pending.length ? "none" : "block";
+    el("log-table").style.display  = rows.length || pending.length ? "table" : "none";
+  }
+
+  // ENTER nel campo batch non salva (come il Vuetify del sito vero)
+  el("batch").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") e.preventDefault();
+  });
+
+  // il doppio click del robot deve selezionare tutto, così l'incolla sostituisce
+  var inputs = document.querySelectorAll('input[type=text]');
+  for (var i = 0; i < inputs.length; i++) {
+    (function (inp) {
+      inp.addEventListener("dblclick", function () { inp.select(); });
+    })(inputs[i]);
+  }
+
+  var toastTimer;
+  function toast(msg, type) {
+    var t = el("toast");
+    t.textContent = msg;
+    t.className = "show " + (type || "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ""; }, 2800);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  render();
+  el("serial").focus();
+
+  // esposto per il test harness (jsdom) — la pagina non lo usa
+  window.__sim = {
+    rows: function () { return rows; },
+    pending: function () { return pending; },
+    csv: function () {
+      var out = "DemoSerial|DemoBatch\n";
+      for (var i = 0; i < rows.length; i++) out += rows[i].s + "|" + rows[i].l + "\n";
+      return out;
+    },
+    setKnobs: function (k) {
+      if (k.lagMs      !== undefined) el("lagMs").value      = k.lagMs;
+      if (k.lossPct    !== undefined) el("lossPct").value    = k.lossPct;
+      if (k.corruptPct !== undefined) el("corruptPct").value = k.corruptPct;
+      if (k.printRow   !== undefined) el("printRow").checked = k.printRow;
+    }
+  };
+})();
+</script>
+
+</body>
+</html>
