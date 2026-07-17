@@ -1,0 +1,68 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # the smoke test needs a display: a build that compiles and shows nothing
+      # is still a broken app, and only a real window proves otherwise
+      - name: install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      # same toolchain the project targets: bytecode 8, plain jdk, zero deps
+      - name: compile (target java 8)
+        run: |
+          mkdir -p out
+          javac --release 8 -Xlint:-options -d out $(find src test -name '*.java')
+
+      # each suite exits 1 on any failed check
+      - name: core suites
+        run: |
+          java -cp out app.core.RegistrationVerifierTest
+          java -cp out app.core.DownloadWatcherTest
+          java -cp out app.core.VerificationTaskTest
+          java -cp out app.core.CoreExtrasTest
+
+      # no emoji may reach a user-visible string: an explicit Font kills java's
+      # glyph fallback and they render as empty boxes on windows
+      - name: glyph safety
+        run: java -cp out app.ui.GlyphSafetyTest
+
+      # icons are pixels, not glyphs — render them and read the pixels back.
+      # born from the gear whose hub was "erased" with AlphaComposite.Clear and
+      # came out as a black disc on the opaque backbuffer.
+      - name: icon rendering
+        run: java -cp out app.ui.IconRenderTest
+
+      # the results table must never paint green a row the verification did not
+      # cover (a dual-scan pair still sitting in the queue)
+      - name: run table model
+        run: java -cp out app.ui.RunTableModelTest
+
+      # a typed spinner value must reach the model without focus loss: the
+      # app's buttons are focusable(false), so a click never blurs the editor
+      - name: spinner commit
+        run: java -cp out app.ui.SpinnerCommitTest
+
+      # an overflowing status text keeps its TAIL — the serial endings are the
+      # digits the operator actually reads
+      - name: text fitting
+        run: java -cp out app.ui.TextFitTest
+
+      # two startups, two code paths. only the second is what production does,
+      # and only the second catches a restored setting firing a listener while
+      # the panel is still half-built.
+      - name: startup smoke test (first run)
+        run: xvfb-run -a java -cp out app.ui.StartupSmokeTest
+
+      - name: startup smoke test (restart with saved settings)
+        run: xvfb-run -a java -cp out app.ui.StartupSmokeTest --saved
