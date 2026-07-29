@@ -18,6 +18,12 @@
                includeantruntime="false"
                debug="true"
                classpath="${javac.classpath}"/>
+        <!-- javac only compiles: the manuals under src/app/docs are read from
+             the classpath by the settings window, so they have to be copied
+             next to the classes or the JAR ships without them -->
+        <copy todir="${build.classes.dir}">
+            <fileset dir="${src.dir}" excludes="**/*.java"/>
+        </copy>
     </target>
 
     <target name="jar" depends="compile" description="Build JAR">

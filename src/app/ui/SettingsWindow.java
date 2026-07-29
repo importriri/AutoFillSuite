@@ -2,6 +2,7 @@ package app.ui;
 
 import app.config.SettingsManager;
 import app.core.CoordMemorizer;
+import app.core.ScanGuard;
 import app.core.VerificationHistory;
 
 import javax.swing.*;
@@ -30,6 +31,9 @@ import java.util.Map;
  */
 public class SettingsWindow extends JDialog {
 
+    /** Tallest the tab area may ask for: the dialog must fit a 768px screen. */
+    private static final int TAB_AREA_MAX_H = 600;
+
     private final SettingsManager cfg = SettingsManager.getInstance();
     private JSpinner spMemoWait;
 
@@ -51,10 +55,15 @@ public class SettingsWindow extends JDialog {
         tabs.addTab("A scansione",   page(buildDualScan()));
         tabs.addTab("Finestra",      page(buildWindow()));
         tabs.addTab("Storico",       page(buildHistory()));
-        // width pinned, height MEASURED: a JTabbedPane already asks for its
-        // tallest tab, so pack() sizes the dialog right on any platform's font
-        // metrics — a hard-coded height is how the main window got clipped
-        tabs.setPreferredSize(new Dimension(560, tabs.getPreferredSize().height));
+        tabs.addTab("Manuale",       new ManualPane());
+        // width pinned, height MEASURED then CAPPED: a JTabbedPane asks for its
+        // tallest tab, so pack() sizes the dialog on the platform's own font
+        // metrics — a hard-coded height is how the main window got clipped. The
+        // cap is the other half of the same rule: every page lives in its own
+        // scroll pane, so a tall tab costs a scrollbar, while a dialog taller
+        // than a 768px shop-floor screen costs the Chiudi button.
+        int measured = tabs.getPreferredSize().height;
+        tabs.setPreferredSize(new Dimension(560, Math.min(measured, TAB_AREA_MAX_H)));
         root.add(tabs, BorderLayout.CENTER);
 
         JButton close = AppTheme.ghost("Chiudi");
@@ -210,9 +219,61 @@ public class SettingsWindow extends JDialog {
         autoS.addActionListener(e -> save(SettingsManager.SCAN_VERIFY_AUTO, autoS.isSelected()));
         p.row(autoS, "spenta: si verifica solo col tasto Verifica");
         p.spinRow("Verifica ogni", intSp(SettingsManager.SCAN_VERIFY_EVERY, 10, 1, 200), "pezzi",
-                  "controllo automatico della sessione contro il CSV");
+                  "controllo della sessione contro il CSV: matura al pezzo indicato "
+                  + "ma parte solo a coda vuota, mai in mezzo a un blocco");
+
+        p.section("Sicure");
+        JCheckBox failSafe = check("Ferma il robot se muovo il mouse",
+            cfg.getBool(SettingsManager.SCAN_FAILSAFE, true));
+        failSafe.addActionListener(e -> save(SettingsManager.SCAN_FAILSAFE, failSafe.isSelected()));
+        p.row(failSafe, "come nella modalita' a intervallo: il mouse e' il freno a mano. "
+                      + "Prima del salvataggio la coppia torna in coda, dopo il salvataggio "
+                      + "resta inviata e il robot si mette in pausa");
+
+        JCheckBox dup = check("Blocca un'etichetta gia' presente nella sessione",
+            cfg.getBool(SettingsManager.SCAN_DUP_GUARD, true));
+        dup.addActionListener(e -> save(SettingsManager.SCAN_DUP_GUARD, dup.isSelected()));
+        p.row(dup, "lo scanner che spara due volte non registra due volte");
+
+        p.section("Controllo formato (facoltativo)");
+        p.hint("Se descrivi i due QR, l'app riconosce da sola le coppie invertite "
+             + "(il lotto sparato in QR 1). Vuoto = nessun controllo.");
+        JTextField pat1 = AppTheme.field();
+        pat1.setText(cfg.get(SettingsManager.SCAN_QR1_PATTERN, ""));
+        patternField(pat1, SettingsManager.SCAN_QR1_PATTERN);
+        p.fieldRow("Modello QR 1", pat1, "espressione regolare dell'etichetta, es. [0-9]{6}\\..*");
+
+        JTextField pat2 = AppTheme.field();
+        pat2.setText(cfg.get(SettingsManager.SCAN_QR2_PATTERN, ""));
+        patternField(pat2, SettingsManager.SCAN_QR2_PATTERN);
+        p.fieldRow("Modello QR 2", pat2, "espressione regolare del lotto, es. [0-9]{18}");
+
+        JCheckBox autoSwap = check("Raddrizza da sola le coppie invertite",
+            cfg.getBool(SettingsManager.SCAN_AUTOSWAP, false));
+        autoSwap.addActionListener(e -> save(SettingsManager.SCAN_AUTOSWAP, autoSwap.isSelected()));
+        p.row(autoSwap, "spenta: l'app avvisa e aspetta che premi Scambia (F2)");
+
         p.hint("La coordinata Export CSV si imposta nel tab Verifica.");
         return p.panel;
+    }
+
+    /** A pattern that does not compile is worse than none: say so, then ignore it. */
+    private void patternField(final JTextField tf, final String key) {
+        paintPattern(tf);
+        Runnable commit = () -> {
+            save(key, tf.getText().trim());
+            paintPattern(tf);
+        };
+        tf.addActionListener(e -> commit.run());
+        tf.addFocusListener(new FocusAdapter() {
+            @Override public void focusLost(FocusEvent e) { commit.run(); }
+        });
+    }
+
+    private void paintPattern(JTextField tf) {
+        boolean ok = ScanGuard.validPattern(tf.getText());
+        tf.setForeground(ok ? AppTheme.TEXT : AppTheme.RED);
+        tf.setToolTipText(ok ? null : "Espressione non valida: verra' ignorata");
     }
 
     // ── tab: finestra (integrazione col sito) ─────────────────────────────
@@ -236,7 +297,10 @@ public class SettingsWindow extends JDialog {
             cfg.getBool(SettingsManager.UI_HUD_AUTO, true));
         hudAuto.addActionListener(e -> save(SettingsManager.UI_HUD_AUTO, hudAuto.isSelected()));
         p.row(hudAuto, "durante il run servono lo stato e il contatore, non i campi: "
-                     + "l'app si fa piccola e torna com'era a fine verifica");
+                     + "l'app si fa piccola e torna com'era a fine verifica. "
+                     + "Nella modalita' a scansione vale solo per i blocchi: in "
+                     + "continuo stai sparando, e una finestra che si chiude e "
+                     + "riapre sotto le mani darebbe solo fastidio");
         p.hint("La barra si apre e si chiude anche a mano, col tasto HUD nell'intestazione.");
         return p.panel;
     }

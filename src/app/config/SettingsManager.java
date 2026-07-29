@@ -141,4 +141,11 @@ public class SettingsManager {
     public static final String SCAN_ENTER       = "scan.enter";
     public static final String SCAN_COORD_X     = "scan.coordX";
     public static final String SCAN_COORD_Y     = "scan.coordY";
+
+    // Tab 3 — safeties
+    public static final String SCAN_FAILSAFE     = "scan.failSafe";     // mouse moved = stop
+    public static final String SCAN_DUP_GUARD    = "scan.dupGuard";     // same label twice
+    public static final String SCAN_QR1_PATTERN  = "scan.qr1Pattern";   // regex, "" = no check
+    public static final String SCAN_QR2_PATTERN  = "scan.qr2Pattern";
+    public static final String SCAN_AUTOSWAP     = "scan.autoSwap";     // fix inverted pairs alone
 }

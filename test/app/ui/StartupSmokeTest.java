@@ -141,19 +141,126 @@ public final class StartupSmokeTest {
                 List<JTextField> qr = showingTextFields(main);
                 check("the scan card exposes its two QR fields", qr.size() == 2);
                 if (qr.size() == 2) {
-                    SwingUtilities.invokeAndWait(() -> {
-                        qr.get(0).setText("QR-SMOKE-1");
-                        qr.get(1).setText("QR-SMOKE-2");
-                        qr.get(1).postActionEvent();   // the scanner's ENTER
-                    });
-                    Thread.sleep(300);
+                    scan(qr, "QR-SMOKE-1", "LOT-1");
                     JButton fire = findButtonByPrefix(main, "REGISTRA TUTTO");
                     check("one scanned pair counts as one, from the FIRST",
                           fire != null && fire.getText().contains("(1)"));
                     check("one queued pair is releasable", fire != null && fire.isEnabled());
-                    SwingUtilities.invokeAndWait(() ->
-                        findButtonByPrefix(main, "Nuova sessione").doClick());
-                    Thread.sleep(200);
+
+                    // the guards only exist in the saved run, where the
+                    // workstation has described its two codes (see the patterns
+                    // in writeSavedSettings)
+                    if (saved) {
+                        // the lot fired into QR 1: nothing may reach the queue,
+                        // and nothing may be lost either — the pair stays in the
+                        // fields waiting for the swap
+                        scan(qr, "LOT-2", "QR-SMOKE-2");
+                        fire = findButtonByPrefix(main, "REGISTRA TUTTO");
+                        check("an inverted pair is never queued",
+                              fire != null && fire.getText().contains("(1)"));
+                        check("an inverted pair stays in the fields",
+                              !qr.get(0).getText().isEmpty() && !qr.get(1).getText().isEmpty());
+
+                        JButton swap = findByTooltip(main, "Scambia QR 1 e QR 2  (F2)");
+                        check("the scan card offers the swap button", swap != null);
+                        if (swap != null) {
+                            SwingUtilities.invokeAndWait(swap::doClick);
+                            Thread.sleep(150);
+                            check("the swap really trades the two fields",
+                                  "QR-SMOKE-2".equals(qr.get(0).getText())
+                               && "LOT-2".equals(qr.get(1).getText()));
+                            SwingUtilities.invokeAndWait(() -> qr.get(1).postActionEvent());
+                            Thread.sleep(300);
+                            fire = findButtonByPrefix(main, "REGISTRA TUTTO");
+                            check("the swapped pair goes through",
+                                  fire != null && fire.getText().contains("(2)"));
+                        }
+
+                        // the scanner that fires twice on the same piece
+                        scan(qr, "QR-SMOKE-1", "LOT-3");
+                        fire = findButtonByPrefix(main, "REGISTRA TUTTO");
+                        check("a label already in the session is refused",
+                              fire != null && fire.getText().contains("(2)"));
+                        // the lever with a half pair still in the fields: the
+                        // worker would refuse to run, so collapsing onto that
+                        // block would park the window on a bar reading 0 / n
+                        // with the explanation hidden behind it
+                        int beforeLever = main.getHeight();
+                        JButton lever = findButtonByPrefix(main, "REGISTRA TUTTO");
+                        if (lever != null) {
+                            SwingUtilities.invokeAndWait(lever::doClick);
+                            Thread.sleep(300);
+                            check("a block is refused while a pair sits in the fields",
+                                  main.getHeight() == beforeLever);
+                        }
+
+                        SwingUtilities.invokeAndWait(() ->
+                            findByTooltip(main, "Svuota i campi").doClick());
+                        Thread.sleep(150);
+
+                        // THE POINT OF "a blocco": the operator pressed a lever
+                        // and now waits, so the window may collapse to the bar —
+                        // the scan tab never asked for it before, and the HUD
+                        // simply never appeared while the robot typed.
+                        //
+                        // The robot is disarmed first, on purpose: this box has
+                        // no browser and no window manager, so a burst would
+                        // type its pair straight back into the app's own fields.
+                        // Without a coordinate the pair is held instead, which
+                        // is the other half of what is being tested.
+                        app.config.SettingsManager cfg = app.config.SettingsManager.getInstance();
+                        cfg.set(app.config.SettingsManager.SCAN_COORD_X, -1);
+                        cfg.save();
+
+                        final int cockpitH = main.getHeight();
+                        final boolean[] collapsed = { false };
+                        final boolean[] hadStop = { false };
+                        // ONE EDT turn: nothing the worker posts can slip
+                        // between the two clicks. Check the window's own HUD
+                        // state here; X11 may report the resized frame geometry
+                        // one event later, and the manual HUD test below already
+                        // verifies the actual size and screen position.
+                        SwingUtilities.invokeAndWait(() -> {
+                            JButton lever2 = findButtonByPrefix(main, "REGISTRA TUTTO");
+                            if (lever2 == null) return;
+                            lever2.doClick();
+                            collapsed[0] = main instanceof MainWindow
+                                        && ((MainWindow) main).isHudMode();
+                            JButton stop = findButton(main, "STOP");
+                            hadStop[0] = stop != null && stop.isEnabled();
+                            if (stop != null) stop.doClick();
+                        });
+                        check("releasing a block collapses to the HUD", collapsed[0]);
+                        check("the bar offers STOP while the block runs", hadStop[0]);
+                        // a red banner behind a window nobody can see is not a
+                        // message: STOP gives the cockpit back
+                        check("STOP gives the cockpit back at once",
+                              main.getHeight() >= cockpitH - 4);
+
+                        // and when the robot cannot even start, the block must
+                        // not leave the window collapsed either: the pair goes
+                        // back to the queue and the cockpit comes back BY ITSELF
+                        JButton resume = findButtonByPrefix(main, "RIPRENDI");
+                        if (resume != null) {
+                            SwingUtilities.invokeAndWait(resume::doClick);
+                            Thread.sleep(150);
+                        }
+                        JButton again = findButtonByPrefix(main, "REGISTRA TUTTO");
+                        if (again != null && again.isEnabled()) {
+                            SwingUtilities.invokeAndWait(again::doClick);
+                            check("a block that cannot run gives the cockpit back",
+                                  waitFor(() -> main.getHeight() >= cockpitH - 4, 5000));
+                        }
+                    }
+
+                    check("the scan card gives the new-session control back",
+                          waitFor(() -> findButtonByPrefix(main, "Nuova sessione") != null,
+                                  5000));
+                    JButton newSession = findButtonByPrefix(main, "Nuova sessione");
+                    if (newSession != null) {
+                        SwingUtilities.invokeAndWait(newSession::doClick);
+                        Thread.sleep(200);
+                    }
                     fire = findButtonByPrefix(main, "REGISTRA TUTTO");
                     check("a new session empties the queue for real",
                           fire != null && fire.getText().contains("(0)") && !fire.isEnabled());
@@ -221,8 +328,14 @@ public final class StartupSmokeTest {
             JDialog settings = awaitDialog("Impostazioni", 3000);
             check("the gear opens the settings window", settings != null);
             if (settings != null) {
-                check("the settings hold the window and history tabs",
-                      hasTab(settings, "Finestra") && hasTab(settings, "Storico"));
+                check("the settings hold the window, history and manual tabs",
+                      hasTab(settings, "Finestra") && hasTab(settings, "Storico")
+                   && hasTab(settings, "Manuale"));
+
+                // a dialog taller than a shop-floor screen hides its own Chiudi
+                // button: the tab area is capped exactly to stop that
+                check("the settings dialog still fits a small screen",
+                      settings.getHeight() <= 760);
 
                 // same disease as the main window's hard-coded height: a fixed
                 // tab-area size clips whichever tab grows a row. measure ALL of them.
@@ -240,6 +353,24 @@ public final class StartupSmokeTest {
                     }
                 }
                 check("no settings tab is clipped", allTabsFit);
+
+                // the manual travels as a classpath resource: a build whose
+                // resources never got copied shows a perfectly laid out EMPTY
+                // pane, and nothing else in the app would ever notice
+                if (tabs != null) {
+                    int manual = -1;
+                    for (int i = 0; i < tabs.getTabCount(); i++) {
+                        if ("Manuale".equals(tabs.getTitleAt(i))) manual = i;
+                    }
+                    final int idx = manual;
+                    if (idx >= 0) {
+                        SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(idx));
+                        Thread.sleep(300);
+                    }
+                    JEditorPane pane = findEditor(settings);
+                    check("the manual is really in the build, not an empty pane",
+                          pane != null && pane.getDocument().getLength() > 2000);
+                }
             }
         }
 
@@ -264,6 +395,10 @@ public final class StartupSmokeTest {
         p.setProperty("reg.count", "50");
         p.setProperty("reg.verifyAuto", "true");
         p.setProperty("scan.verifyEvery", "5");
+        // a workstation that described its two QR codes: the inversion guard
+        // only has an opinion when these are set
+        p.setProperty("scan.qr1Pattern", "QR-SMOKE-[0-9]+");
+        p.setProperty("scan.qr2Pattern", "LOT-[0-9]+");
         p.setProperty("ui.winX", "40");
         p.setProperty("ui.winY", "40");
         // a run the app never verified: the restart must offer to check it
@@ -276,6 +411,38 @@ public final class StartupSmokeTest {
                 new File(home.toFile(), ".autofill_suite.properties"))) {
             p.store(out, "saved by StartupSmokeTest");
         }
+    }
+
+    /** Polls instead of sleeping: a loaded machine is slow, not broken. */
+    private static boolean waitFor(java.util.function.BooleanSupplier done, int timeoutMs)
+            throws Exception {
+        long until = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < until) {
+            if (done.getAsBoolean()) return true;
+            Thread.sleep(80);
+        }
+        return done.getAsBoolean();
+    }
+
+    /** One piece through the scanner: two codes and the ENTER suffix. */
+    private static void scan(List<JTextField> qr, String q1, String q2) throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            qr.get(0).setText(q1);
+            qr.get(1).setText(q2);
+            qr.get(1).postActionEvent();   // the scanner's ENTER
+        });
+        Thread.sleep(300);
+    }
+
+    private static JEditorPane findEditor(Container root) {
+        for (Component c : root.getComponents()) {
+            if (c instanceof JEditorPane) return (JEditorPane) c;
+            if (c instanceof Container) {
+                JEditorPane p = findEditor((Container) c);
+                if (p != null) return p;
+            }
+        }
+        return null;
     }
 
     /** A container asking for more height than it got is losing content. */
@@ -432,9 +599,13 @@ public final class StartupSmokeTest {
         return true;
     }
 
+    // isShowing is not pedantry: the range card carries a "Svuota i campi" of
+    // its own, and a card hidden by the CardLayout answered first — the test
+    // clicked a button the operator could not even see
     private static JButton findByTooltip(Container root, String tip) {
         for (Component c : root.getComponents()) {
-            if (c instanceof JButton && tip.equals(((JButton) c).getToolTipText())) {
+            if (c instanceof JButton && c.isShowing()
+                && tip.equals(((JButton) c).getToolTipText())) {
                 return (JButton) c;
             }
             if (c instanceof Container) {

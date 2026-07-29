@@ -7,8 +7,10 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -20,26 +22,37 @@ import java.util.function.Function;
 
 /**
  * Mode: REGISTRA · a scansione — two QRs per item (label + lot), built around a
- * QUEUE: a scanned
- * pair goes into the queue and the fields clear at once, so the operator works
- * at their own pace and nothing is lost. A worker drains the queue one short
- * burst at a time (~0.8s) and only starts when the scanner has been quiet for
- * a moment — never mid-scan.
+ * QUEUE: a scanned pair goes into the queue and the fields clear at once, so the
+ * operator works at their own pace and nothing is lost. A worker drains the
+ * queue one short burst at a time (~0.8s) and only starts when the scanner has
+ * been quiet for a moment — never mid-scan.
  *
  * No per-item clipboard check: the CSV is the truth, like in Register. Every N
- * items the session is verified against the export; the 🔎 does it on demand.
+ * items the session is verified against the export; Verifica does it on demand.
  * The Export CSV coordinate is shared with the Register tab.
  *
  * Two modes:
  *  - Continuo (default): each pair is registered as it comes
  *  - A blocco: pairs pile up, "REGISTRA TUTTO" fires the whole queue at once
+ *
+ * THREE SAFETIES, because a burst types into a browser nobody is watching:
+ *  1. mouse fail-safe — the robot leaves the pointer on the target; if it is
+ *     somewhere else at the next step, the operator took the mouse back. Before
+ *     ENTER the pair returns to the head of the queue and everything pauses;
+ *     after ENTER the pair IS registered, so it counts, and only then we stop.
+ *  2. inversion guard — ScanGuard reads the two codes against the operator's
+ *     patterns and refuses (or fixes) a pair scanned into the wrong holes.
+ *  3. duplicate guard — the same label twice in one session is a scanner that
+ *     fired twice, not a second piece.
  */
 public class ScanModePanel extends JPanel {
 
-    private static final int QUIET_MS = 200;   // scanner idle for at least this
+    private static final int QUIET_MS = 200;    // scanner idle for at least this
+    private static final int STUCK_MS = 5000;   // half-scanned fields holding the queue
 
     // banner states
-    private static final int READY = 0, BUSY = 1, VERIFY = 2, PAUSED = 3, ERROR = 4, COLLECT = 5;
+    private static final int READY = 0, BUSY = 1, VERIFY = 2, PAUSED = 3,
+                             ERROR = 4, COLLECT = 5, WARN = 6, STUCK = 7;
 
     // a scanned pair: the two QRs and its table row
     private static final class Pair {
@@ -57,14 +70,20 @@ public class ScanModePanel extends JPanel {
     private final Map<String, String> session = new LinkedHashMap<>();   // EDT only
 
     private volatile boolean paused    = false;
-    private volatile boolean batchMode = false;   // "a blocco": collect, then ▶
+    private volatile boolean batchMode = false;   // "a blocco": collect, then fire
     private volatile boolean releasing = false;
     private volatile boolean burstBusy = false;
     private volatile boolean verifying = false;
     private volatile boolean fieldsBusy = false;
+    private volatile boolean verifyDue  = false;   // owed, not yet convenient
+    private int sinceVerify = 0;                   // EDT only
     private volatile long lastInputAt  = 0;
+    private volatile long fieldsBusyAt = 0;
     private volatile Point appPoint    = null;
     private boolean sessionStarted = false;
+    private boolean sticky = false;               // a message that must not be wiped
+    private volatile boolean blockRunning = false;   // a released block owns the HUD
+    private int blockDone = 0;
     private int sent = 0;
 
     private VerificationTask verifyTask = null;
@@ -73,7 +92,7 @@ public class ScanModePanel extends JPanel {
 
     private JTextField tfQr1, tfQr2;
     private JLabel banner;
-    private JButton btnFire, btnVerify, btnNewSession, btnClearFields;
+    private JButton btnFire, btnVerify, btnNewSession, btnClearFields, btnSwap;
     private Segmented modeSelector;
     private StatPair stats;
 
@@ -88,6 +107,16 @@ public class ScanModePanel extends JPanel {
         Thread worker = new Thread(this::drainLoop, "dualscan-worker");
         worker.setDaemon(true);
         worker.start();
+
+        // a pair left half-scanned holds the whole queue: after a few seconds
+        // the banner says so instead of sitting on a cheerful green
+        Timer heartbeat = new Timer(1000, e -> {
+            watchdogBlock();
+            maybeAutoVerify();
+            nudgeBanner();
+        });
+        heartbeat.setRepeats(true);
+        heartbeat.start();
     }
 
     // ── UI ────────────────────────────────────────────────────────────────
@@ -113,12 +142,18 @@ public class ScanModePanel extends JPanel {
         g.gridx = 1; g.weightx = 1.0;
         card.add(r1, g);
 
-        // QR2
+        // QR2 + swap
         y++; g.gridx = 0; g.gridy = y; g.weightx = 0;
         card.add(AppTheme.label("QR 2"), g);
+        JPanel r2 = new JPanel(new BorderLayout(6, 0));
+        r2.setOpaque(false);
         tfQr2 = AppTheme.fieldQr();
+        btnSwap = AppTheme.iconButton(
+            Icons.swap(AppTheme.ICON, AppTheme.SUBTEXT), "Scambia QR 1 e QR 2  (F2)");
+        r2.add(tfQr2, BorderLayout.CENTER);
+        r2.add(btnSwap, BorderLayout.EAST);
         g.gridx = 1; g.weightx = 1.0;
-        card.add(tfQr2, g);
+        card.add(r2, g);
 
         // banner
         y++; g.gridx = 0; g.gridy = y; g.gridwidth = 2;
@@ -127,7 +162,7 @@ public class ScanModePanel extends JPanel {
         card.add(banner, g);
         g.insets = new Insets(2, 3, 2, 3);
 
-        // modalità: un segmento, non una checkbox di sistema
+        // modalita': un segmento, non una checkbox di sistema
         y++; g.gridy = y;
         batchMode = cfg.getBool(SettingsManager.SCAN_BATCH, false);
         modeSelector = new Segmented(new String[] { "Continuo", "A blocco" },
@@ -166,7 +201,9 @@ public class ScanModePanel extends JPanel {
         DocumentListener typing = new DocumentListener() {
             private void touched() {
                 lastInputAt = System.currentTimeMillis();
-                fieldsBusy = !tfQr1.getText().isEmpty() || !tfQr2.getText().isEmpty();
+                boolean busy = !tfQr1.getText().isEmpty() || !tfQr2.getText().isEmpty();
+                if (busy && !fieldsBusy) fieldsBusyAt = lastInputAt;
+                fieldsBusy = busy;
             }
             @Override public void insertUpdate(DocumentEvent e)  { touched(); }
             @Override public void removeUpdate(DocumentEvent e)  { touched(); }
@@ -181,18 +218,26 @@ public class ScanModePanel extends JPanel {
         tfQr2.addActionListener(e -> accept());
         tfQr2.addFocusListener(new FocusAdapter() {
             @Override public void focusLost(FocusEvent e) {
+                // a scanner whose suffix is TAB never fires ENTER: the pair is
+                // complete and focus jumps INSIDE our own panel. Anything else
+                // (alt-tab to the browser, a popup, the gear) is not a scan and
+                // must not queue a pair behind the operator's back.
+                if (e.isTemporary()) return;
+                Component next = e.getOppositeComponent();
+                if (next == null || !SwingUtilities.isDescendingFrom(next, ScanModePanel.this)) return;
                 if (!tfQr2.getText().trim().isEmpty()) accept();
             }
         });
 
-        btnClearFields.addActionListener(e -> {
-            tfQr1.setText("");
-            tfQr2.setText("");
-            tfQr1.requestFocusInWindow();
-        });
+        btnClearFields.addActionListener(e -> clearFields());
+        btnSwap.addActionListener(e -> swapFields());
         btnFire.addActionListener(e -> {
-            if (batchMode) {
-                if (!queue.isEmpty()) { releasing = true; updateFireButton(); }
+            if (paused) {                       // one lever: whatever stopped us, resume
+                paused = false;
+                refreshBanner();
+                updateFireButton();
+            } else if (batchMode) {
+                if (!queue.isEmpty()) startBlock();
             } else {
                 togglePause();
             }
@@ -200,9 +245,89 @@ public class ScanModePanel extends JPanel {
         btnVerify.addActionListener(e -> verifySession(true));
         btnNewSession.addActionListener(e -> newSession());
 
+        // F2 while the focus is anywhere in this card — the scanner never sends it
+        getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0), "swapQr");
+        getActionMap().put("swapQr", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { swapFields(); }
+        });
+
         refreshBanner();
         updateFireButton();
         return card;
+    }
+
+    private void clearFields() {
+        tfQr1.setText("");
+        tfQr2.setText("");
+        refreshBanner();
+        tfQr1.requestFocusInWindow();
+    }
+
+    /** The correction for the classic mis-scan: the lot went into QR 1. */
+    private void swapFields() {
+        String a = tfQr1.getText();
+        String b = tfQr2.getText();
+        tfQr1.setText(b);
+        tfQr2.setText(a);
+        refreshBanner();
+        // land where the next scan belongs: the empty field, or QR 2 to confirm
+        if (tfQr1.getText().trim().isEmpty()) tfQr1.requestFocusInWindow();
+        else {
+            tfQr2.requestFocusInWindow();
+            tfQr2.setCaretPosition(tfQr2.getText().length());
+        }
+    }
+
+    // ── the released block owns the HUD ───────────────────────────────────
+
+    /**
+     * "A blocco" is the ONLY scan situation where the window may collapse to
+     * the HUD: the operator pressed a lever and now waits, exactly like a range
+     * run. In continuo he is still scanning, and a window that shrinks and
+     * reopens under his hands every couple of seconds is worse than no HUD at
+     * all — so continuo never calls this.
+     */
+    private void startBlock() {
+        // the worker refuses to run while a half pair sits in the fields
+        // (mayRun), so releasing here would collapse the window onto a block
+        // that cannot move: a bar reading 0 / n forever, with the explanation
+        // hidden behind it. Same rule, said out loud instead.
+        if (fieldsBusy) {
+            Toolkit.getDefaultToolkit().beep();
+            setState(ERROR, "Coppia incompleta: completa o svuota i campi");
+            return;
+        }
+        blockDone = 0;
+        releasing = true;
+        blockRunning = true;
+        updateFireButton();
+        ctx.jobStarted(this::stopBlock);
+        ctx.jobProgress(AppTheme.PEACH, "ROBOT AL LAVORO",
+                        "0 / " + queue.size(), "registrate", 0, true);
+    }
+
+    /**
+     * Give the cockpit back. Called at the end of the block, but ALSO by every
+     * way a block can stop early: a banner nobody can see is not a message, and
+     * the operator must not have to expand the bar by hand to find out why the
+     * robot went quiet.
+     */
+    private boolean endBlock() {
+        if (!blockRunning) return false;
+        blockRunning = false;
+        ctx.jobFinished();
+        ctx.focusHome(tfQr1);   // the cockpit is back: the caret goes home with it
+        return true;
+    }
+
+    /** STOP, from the HUD. */
+    private void stopBlock() {
+        paused = true;
+        releasing = false;
+        endBlock();
+        refreshBanner();
+        updateFireButton();
     }
 
     // ── accept pairs: never lost, never blocking ──────────────────────────
@@ -212,16 +337,45 @@ public class ScanModePanel extends JPanel {
         String q2 = tfQr2.getText().trim();
         if (q1.isEmpty() || q2.isEmpty()) return;
 
-        // the burst runs on a worker: check the window BEFORE the pair is queued,
-        // while we are still on the EDT and can move the window if we must
+        // a missing Robot is NOT a reason to refuse a scan: the queue is the
+        // safe place, and the burst holds the pair with a message until the
+        // machine can type again. Refusing here would lose the piece instead.
+
+        // 1. the two codes in the right holes
+        boolean corrected = false;
+        int advice = ScanGuard.inspect(q1, q2,
+            cfg.get(SettingsManager.SCAN_QR1_PATTERN, ""),
+            cfg.get(SettingsManager.SCAN_QR2_PATTERN, ""));
+        if (advice == ScanGuard.INVERTED) {
+            if (!cfg.getBool(SettingsManager.SCAN_AUTOSWAP, false)) {
+                Toolkit.getDefaultToolkit().beep();
+                setState(WARN, "QR invertiti: premi Scambia (F2), poi INVIO");
+                return;
+            }
+            String t = q1; q1 = q2; q2 = t;
+            corrected = true;
+        } else if (advice == ScanGuard.MISMATCH) {
+            Toolkit.getDefaultToolkit().beep();
+            setState(ERROR, "Formato non riconosciuto: controlla i due QR");
+            return;
+        }
+
+        // 2. the same label twice is a scanner that fired twice
+        if (cfg.getBool(SettingsManager.SCAN_DUP_GUARD, true) && alreadyKnown(q1)) {
+            Toolkit.getDefaultToolkit().beep();
+            setState(ERROR, "Etichetta gia' in sessione: " + q1);
+            return;
+        }
+
+        // 3. the burst runs on a worker: check the window BEFORE the pair is
+        // queued, while we are still on the EDT and can move the window if we must
         int cx = cfg.getInt(SettingsManager.SCAN_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.SCAN_COORD_Y, -1);
         if (cx >= 0 && cy >= 0) {
-            Map<String, Point> targets = new LinkedHashMap<>();
-            targets.put("Casella 1", new Point(cx, cy));
-            String blocked = ctx.blockingCollision(targets);
+            String blocked = ctx.blockingCollision(targets(cx, cy));
             if (blocked != null) { setState(ERROR, blocked); return; }
         }
+
         if (!sessionStarted) { results.beginSession(); sessionStarted = true; }
         int row = results.addQueuedPair(q1, q2);
         queue.addLast(new Pair(q1, q2, row));
@@ -231,6 +385,22 @@ public class ScanModePanel extends JPanel {
         results.sessionCounters(sent, queue.size());
         refreshBanner();
         updateFireButton();
+        if (corrected) setState(WARN, "Coppia invertita, corretta da sola: " + q1);
+    }
+
+    /** Same label already sent in this session, or already waiting in the queue. */
+    private boolean alreadyKnown(String code) {
+        if (session.containsKey(code)) return true;
+        for (Pair p : queue) {
+            if (p.q1.equals(code)) return true;
+        }
+        return false;
+    }
+
+    private static Map<String, Point> targets(int cx, int cy) {
+        Map<String, Point> t = new LinkedHashMap<>();
+        t.put("Casella 1", new Point(cx, cy));
+        return t;
     }
 
     // ── worker: drains the queue one burst at a time ──────────────────────
@@ -246,7 +416,12 @@ public class ScanModePanel extends JPanel {
                 burst(pair);
                 if (batchMode && queue.isEmpty()) {
                     releasing = false;
-                    SwingUtilities.invokeLater(() -> { refreshBanner(); updateFireButton(); });
+                    SwingUtilities.invokeLater(() -> {
+                        refreshBanner();
+                        updateFireButton();
+                        maybeAutoVerify();          // may keep the HUD a little longer
+                        if (!verifying) endBlock();
+                    });
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -256,7 +431,7 @@ public class ScanModePanel extends JPanel {
     }
 
     // run only when: not paused, no verification running, scanner idle,
-    // fields empty — and, in batch mode, only after ▶ was pressed
+    // fields empty — and, in batch mode, only after the lever was pressed
     private boolean mayRun() {
         boolean quiet = System.currentTimeMillis() - lastInputAt > QUIET_MS;
         boolean held  = batchMode && !releasing;
@@ -267,69 +442,173 @@ public class ScanModePanel extends JPanel {
         int cx = cfg.getInt(SettingsManager.SCAN_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.SCAN_COORD_Y, -1);
         if (cx < 0 || cy < 0) {
-            queue.addFirst(pair);
-            if (batchMode) releasing = false; else paused = true;
-            SwingUtilities.invokeLater(() -> {
-                setState(ERROR, "Manca la coordinata nelle Impostazioni — coppia rimessa in coda");
-                updateFireButton();
-            });
+            hold(pair, "Manca la coordinata nelle Impostazioni — coppia rimessa in coda");
+            return;
+        }
+        if (!robot.isAvailable()) {
+            hold(pair, "Robot non disponibile — coppia rimessa in coda");
             return;
         }
 
         final int tFocus = cfg.getInt(SettingsManager.SCAN_FOCUS, 300);
         final int tKey   = cfg.getInt(SettingsManager.SCAN_KEY,   70);
         final int tEnter = cfg.getInt(SettingsManager.SCAN_ENTER, 150);
+        final boolean guarded = cfg.getBool(SettingsManager.SCAN_FAILSAFE, true);
+        final Point target = new Point(cx, cy);
 
+        // the window may have moved since the pair was scanned: ask again, and
+        // take the return point in the same hop onto the EDT
+        final String[] blocked = { null };
         try {
-            SwingUtilities.invokeAndWait(() ->
-                appPoint = tfQr1.isShowing() ? tfQr1.getLocationOnScreen() : null);
-        } catch (Exception ignored) { }
+            SwingUtilities.invokeAndWait(() -> {
+                appPoint = tfQr1.isShowing() ? tfQr1.getLocationOnScreen() : null;
+                blocked[0] = ctx.blockingCollision(targets(target.x, target.y));
+            });
+        } catch (InterruptedException ie) {
+            queue.addFirst(pair);
+            throw ie;
+        } catch (Exception ignored) {
+            // an EDT that cannot answer is not a reason to type blind
+            hold(pair, "Finestra non interrogabile — coppia rimessa in coda");
+            return;
+        }
+        if (blocked[0] != null) { hold(pair, blocked[0]); return; }
 
         burstBusy = true;
         SwingUtilities.invokeLater(() -> setState(BUSY, null));
         try {
             robot.doubleClick(cx, cy);
             robot.sleep(tFocus);
+            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
+
             robot.pasteText(pair.q1); robot.sleep(tKey);
+            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
+
             robot.pressTab();         robot.sleep(tKey);
+            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
+
             robot.pasteText(pair.q2); robot.sleep(tKey);
+            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
+
             robot.pressTab();         robot.sleep(tKey);
+            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
+
+            // point of no return: after ENTER the pair IS registered, so it can
+            // never go back in the queue — a re-send would double-register it
             robot.pressEnter();       robot.sleep(tEnter);
 
-            Point back = appPoint;   // return focus to the app at once
-            if (back != null) robot.click(back.x + 20, back.y + 10);
-
-            SwingUtilities.invokeLater(() -> onPairSent(pair));
+            final boolean grabbed = guarded && robot.isMouseMoved(target);
+            if (!grabbed) {
+                Point back = appPoint;   // return focus to the app at once
+                if (back != null) robot.click(back.x + 20, back.y + 10);
+            }
+            SwingUtilities.invokeLater(() -> {
+                countSent(pair);
+                if (grabbed) haltAfterSend();
+                else maybeAutoVerify();
+            });
         } catch (InterruptedException ie) {
             throw ie;
         } catch (Exception ex) {
+            paused = true;
+            releasing = false;
             SwingUtilities.invokeLater(() -> {
+                endBlock();
                 Toolkit.getDefaultToolkit().beep();
-                setState(ERROR, "Coppia NON inviata: " + pair.q1 + "— rispara");
+                results.markNotSent(pair.row, "Coppia non inviata: " + pair.q1);
+                setState(ERROR, "Coppia NON inviata: " + pair.q1 + " — controlla e rispara");
+                results.sessionCounters(sent, queue.size());
+                stats.set(sent, queue.size());
+                updateFireButton();
             });
         } finally {
             burstBusy = false;
         }
     }
 
+    /** Nothing was typed: the pair goes back to the head and the line stops. */
+    private void hold(Pair pair, String why) {
+        queue.addFirst(pair);
+        paused = true;
+        releasing = false;
+        SwingUtilities.invokeLater(() -> {
+            endBlock();
+            setState(ERROR, why);
+            updateFireButton();
+        });
+    }
+
+    /** The operator took the mouse back mid-burst, before the save. */
+    private void failSafe(Pair pair) {
+        queue.addFirst(pair);
+        paused = true;
+        releasing = false;
+        Toolkit.getDefaultToolkit().beep();
+        SwingUtilities.invokeLater(() -> {
+            endBlock();
+            setState(ERROR, "Mouse mosso: robot fermo. Controlla il form, poi RIPRENDI");
+            results.showFailSafe("Coppia " + pair.q1
+                + " rimessa in coda: il form sul sito puo' essere incompleto");
+            results.sessionCounters(sent, queue.size());
+            stats.set(sent, queue.size());
+            updateFireButton();
+        });
+    }
+
+    /** Mouse grabbed AFTER the save: the pair counts, the robot still stops. */
+    private void haltAfterSend() {
+        paused = true;
+        releasing = false;
+        endBlock();
+        Toolkit.getDefaultToolkit().beep();
+        setState(ERROR, "Mouse mosso dopo il salvataggio: coppia inviata, robot in pausa");
+        updateFireButton();
+    }
+
     // ── outcomes (EDT) ─────────────────────────────────────────────────────
 
-    private void onPairSent(Pair pair) {
+    private void countSent(Pair pair) {
         sent++;
+        sinceVerify++;
         session.put(pair.q1, pair.q2);
         results.markSent(pair.row);
         results.sessionCounters(sent, queue.size());
         refreshBanner();
         updateFireButton();
-        ctx.jobProgress(AppTheme.GREEN, "SPARA PURE", String.valueOf(sent),
-                        "inviate · coda " + queue.size(), -1, false);
+        if (blockRunning) {
+            // the total is recomputed, not remembered: pairs scanned while the
+            // block runs join it, and a fixed denominator would read 7 / 5
+            blockDone++;
+            int total = blockDone + queue.size();
+            ctx.jobProgress(AppTheme.PEACH, "ROBOT AL LAVORO",
+                            blockDone + " / " + total, "registrate",
+                            total > 0 ? blockDone * 100 / total : 100, true);
+        } else {
+            ctx.jobProgress(AppTheme.GREEN, "SPARA PURE", String.valueOf(sent),
+                            "inviate · coda " + queue.size(), -1, false);
+        }
 
         int every = cfg.getInt(SettingsManager.SCAN_VERIFY_EVERY, 10);
         if (cfg.getBool(SettingsManager.SCAN_VERIFY_AUTO, true)
-            && every > 0 && sent % every == 0) verifySession(false);
+            && every > 0 && sinceVerify >= every) verifyDue = true;
     }
 
-    /** manual = 🔎: short wait + fallback to the latest export; auto = full timeout. */
+    /**
+     * The automatic check is OWED at the Nth piece and TAKEN at the first lull:
+     * queue empty, nothing half-scanned, robot still. Firing it on the count
+     * alone cut a block in half — the robot walked off to click Export with
+     * pairs still waiting, and the operator watched a full queue do nothing.
+     * The debt is never dropped: the heartbeat retries until the lull arrives.
+     */
+    private void maybeAutoVerify() {
+        if (!verifyDue || verifying || burstBusy || paused) return;
+        if (!queue.isEmpty() || fieldsBusy) return;
+        if (System.currentTimeMillis() - lastInputAt <= QUIET_MS) return;
+        verifySession(false);
+    }
+
+    /** manual = the button: short wait + fallback to the latest export;
+     *  auto = full timeout. */
     private void verifySession(boolean manual) {
         if (verifying) return;
         if (session.isEmpty()) { setState(ERROR, "Sessione vuota: spara almeno una coppia"); return; }
@@ -363,6 +642,8 @@ public class ScanModePanel extends JPanel {
         final Function<List<String>, VerificationResult> checker =
             lines -> verifier.verify(lines, snapshot);
 
+        verifyDue = false;
+        sinceVerify = 0;
         verifying = true;
         setState(VERIFY, "Verifica sessione in corso...");
         results.setActions(() -> verifySession(true), this::cancelVerify);
@@ -378,7 +659,12 @@ public class ScanModePanel extends JPanel {
         results.showVerifying();
 
         final VerificationTask.Listener listener = new VerificationTask.Listener() {
-            @Override public void onStatus(String m) { setState(VERIFY, m); }
+            @Override public void onStatus(String m) {
+                setState(VERIFY, m);
+                if (blockRunning) {
+                    ctx.jobProgress(AppTheme.BLUE, "VERIFICA", "-", "in corso", -1, false);
+                }
+            }
             @Override public void onOutcome(VerificationResult r, Path f, int attempts, boolean fresh) {
                 verifying = false;
                 String fn = f.getFileName().toString();
@@ -390,21 +676,27 @@ public class ScanModePanel extends JPanel {
                         snapshot.size(), "dual-scan", fresh))) {
                     setState(ERROR, "Log non scrivibile: " + log.getFile());
                 }
-                if (queue.isEmpty()) ctx.focusHome(tfQr1);
+                if (blockRunning) {
+                    ctx.jobProgress(r.isClean() ? AppTheme.GREEN : AppTheme.RED,
+                                    r.isClean() ? "TUTTO OK" : r.totalProblems() + " PROBLEMI",
+                                    r.getMatched() + " / " + snapshot.size(),
+                                    "verificate", 100, false);
+                }
+                if (!endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
             }
             @Override public void onFailure(String reason) {
                 verifying = false;
                 results.showFailure(reason);
                 setState(ERROR, "Verifica fallita — riprova col tasto Verifica");
                 log.append("ERRORE · dual-scan · " + reason);
-                if (queue.isEmpty()) ctx.focusHome(tfQr1);
+                if (!endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
             }
             @Override public void onCancelled() {
                 verifying = false;
                 results.showCancelled();
                 refreshBanner();
                 log.append("ANNULLATA · dual-scan");
-                if (queue.isEmpty()) ctx.focusHome(tfQr1);
+                if (!endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
             }
         };
 
@@ -431,31 +723,46 @@ public class ScanModePanel extends JPanel {
 
     private void togglePause() {
         paused = !paused;
+        if (paused) endBlock();
         refreshBanner();
         updateFireButton();
     }
 
-    // the fire button changes job with the mode
+    // the fire button changes job with the mode — and a stop always resumes here
     private void updateFireButton() {
-        if (batchMode) {
+        if (paused) {
+            btnFire.setText("RIPRENDI");
+            btnFire.setIcon(Icons.play(AppTheme.ICON, AppTheme.ON_ACCENT));
+            btnFire.setEnabled(true);
+        } else if (batchMode) {
             btnFire.setText(releasing ? "REGISTRO..." : "REGISTRA TUTTO (" + queue.size() + ")");
             btnFire.setIcon(Icons.play(AppTheme.ICON, AppTheme.ON_ACCENT));
             btnFire.setEnabled(!releasing && !queue.isEmpty());
         } else {
-            btnFire.setText(paused ? "RIPRENDI" : "PAUSA");
-            btnFire.setIcon(paused ? Icons.play(AppTheme.ICON, AppTheme.ON_ACCENT)
-                                   : Icons.pause(AppTheme.ICON, AppTheme.ON_ACCENT));
+            btnFire.setText("PAUSA");
+            btnFire.setIcon(Icons.pause(AppTheme.ICON, AppTheme.ON_ACCENT));
             btnFire.setEnabled(true);
         }
     }
 
     private void newSession() {
+        // a burst mid-flight would land in the session we just emptied
+        if (burstBusy || verifying) {
+            setState(ERROR, "Attendi la fine del ciclo in corso");
+            return;
+        }
+        endBlock();
         queue.clear();
         session.clear();
         sent = 0;
+        blockDone = 0;
+        sinceVerify = 0;
+        verifyDue = false;
         releasing = false;
+        paused = false;
         sessionStarted = true;
         results.beginSession();
+        clearFields();
         refreshBanner();
         updateFireButton();
         tfQr1.requestFocusInWindow();
@@ -464,6 +771,8 @@ public class ScanModePanel extends JPanel {
     // ── banner ──────────────────────────────────────────────────────────────
 
     private void setState(int state, String text) {
+        // a warning or an error stays on screen until something real replaces it
+        sticky = state == ERROR || state == WARN;
         switch (state) {
             case BUSY:
                 banner.setBackground(AppTheme.PEACH);
@@ -485,6 +794,16 @@ public class ScanModePanel extends JPanel {
                 banner.setForeground(AppTheme.ON_ACCENT);
                 banner.setText(text != null ? text : "Errore");
                 break;
+            case WARN:
+                banner.setBackground(AppTheme.YELLOW);
+                banner.setForeground(AppTheme.ON_ACCENT);
+                banner.setText(text != null ? text : "Controlla la coppia");
+                break;
+            case STUCK:
+                banner.setBackground(AppTheme.SURFACE2);
+                banner.setForeground(AppTheme.TEXT);
+                banner.setText("COPPIA INCOMPLETA — la coda aspetta");
+                break;
             case COLLECT:
                 banner.setBackground(AppTheme.SURFACE2);
                 banner.setForeground(AppTheme.TEXT);
@@ -501,10 +820,34 @@ public class ScanModePanel extends JPanel {
         stats.set(sent, queue.size());
     }
 
+    /**
+     * A block can stop being able to drain after it started: one QR scanned
+     * mid-block leaves a half pair in the fields and the queue waits for it.
+     * The bar has no room to explain that, so the cockpit comes back and the
+     * banner does the talking. The block is NOT cancelled — it resumes by
+     * itself as soon as the pair is completed or the fields are cleared.
+     */
+    private void watchdogBlock() {
+        if (!blockRunning || burstBusy || verifying || paused) return;
+        if (!fieldsBusy) return;
+        if (System.currentTimeMillis() - fieldsBusyAt < STUCK_MS) return;
+        endBlock();
+    }
+
+    /** The heartbeat: it may only ADD information, never erase a message. */
+    private void nudgeBanner() {
+        if (burstBusy || verifying || sticky) return;
+        refreshBanner();
+    }
+
     private void refreshBanner() {
+        sticky = false;
         refreshCounter();
         if (burstBusy || verifying) return;
+        boolean halfScanned = fieldsBusy && !queue.isEmpty()
+            && System.currentTimeMillis() - fieldsBusyAt > STUCK_MS;
         if (paused)                       setState(PAUSED, null);
+        else if (halfScanned)             setState(STUCK, null);
         else if (batchMode && !releasing) setState(COLLECT, null);
         else                              setState(READY, null);
     }

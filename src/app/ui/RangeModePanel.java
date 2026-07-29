@@ -296,7 +296,13 @@ public class RangeModePanel extends JPanel {
             @Override protected void onFinally() {
                 robotRunning = false;
                 refreshButtons();
-                if (!cfg.getBool(SettingsManager.REG_VERIFY_AUTO, true)) ctx.jobFinished();
+                // the cockpit comes back unless a verification is actually
+                // running. "auto-verify is on" is NOT the same thing: a
+                // fail-safe or a STOP skips onCompleted, so no verification
+                // ever starts — and the window used to stay collapsed in the
+                // HUD, with the operator having to expand it by hand to read
+                // why the robot stopped.
+                if (!verifying) ctx.jobFinished();
             }
             @Override protected void onFailSafe(String message) {
                 status.setString(message);

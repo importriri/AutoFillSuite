@@ -18,9 +18,11 @@ it just sent. Green only with: 0 missing, 0 unregistered, 0 wrong lots.
 
 ```
 app/
-├── config/   SettingsManager                 (leaf: imports nobody)
-├── core/     Robot, Task, Watcher, Verifier  (imports config only)
-└── ui/       panels, theme, table            (imports core and config)
+├── config/   SettingsManager, Manuals         (leaf: imports nobody)
+├── core/     Robot, Task, Watcher, Verifier,
+│             ScanGuard                        (imports config only)
+├── docs/     MANUAL.it.md, MANUAL.en.md       (resources, not code)
+└── ui/       panels, theme, table, Markdown   (imports core and config)
 ```
 
 The rule: **core does not know the UI exists**. `VerificationTask` never
@@ -95,8 +97,69 @@ scanned, the release button showing (0) disabled, the count starting from
 the second scan, and `newSession()` unable to empty the hand. Nothing
 leaves a queue until it can actually be processed.
 
-Every N sends (if the per-mode toggle allows it) a session verification
-runs against a **snapshot** of the pairs sent so far.
+The session verification is **owed, then taken**: every N sends it sets a
+`verifyDue` flag, and `maybeAutoVerify()` only fires it when the queue is
+empty, the fields are empty and no burst is in flight — retried by a 1s
+heartbeat until that lull arrives. Firing it on the count alone tore a
+released block in half: the robot walked off to click Export with pairs
+still queued. The check runs against a **snapshot** of the pairs sent so far.
+
+### Who owns the HUD
+
+`jobStarted` / `jobFinished` are the whole contract: the window collapses to
+the bar while a job runs and comes back the way the operator left it. The scan
+tab never called either — the HUD simply never appeared while the robot typed —
+and it now calls them for **released blocks only**. Continuo is deliberately
+excluded: the operator is still scanning, and a window that collapses and
+reopens under his hands every couple of seconds is worse than no HUD at all.
+
+The hard part is the way back, because a bar has no room to explain itself.
+`endBlock()` is therefore called from every exit, not just the happy one: the
+block draining, STOP from the bar, the mouse fail-safe, a held pair, a burst
+that died, an explicit pause, a new session, and the end of the verification
+that a finished block may hand over to. A watchdog covers the case the exits
+cannot: a single QR scanned mid-block leaves a half pair in the fields, the
+queue stops draining, and after a few seconds the cockpit comes back on its own
+so the banner can do the talking — without cancelling the block, which resumes
+as soon as the fields are clear. Symmetrically, the lever refuses to release a
+block while the fields are busy: the worker would not run anyway, and
+collapsing onto a block that cannot move parks the window on a bar reading
+0 / n forever.
+
+Range mode had the mirror bug: `onFinally` gave the window back only when
+auto-verification was OFF, on the assumption that otherwise a verification
+would take over. A fail-safe or a STOP skips `onCompleted`, so no verification
+ever started — and the window stayed collapsed until the operator expanded it
+by hand to find out why the robot had gone quiet. The condition is now "is a
+verification actually running", not "is one configured".
+
+### The three safeties of the burst
+
+A burst types into a browser nobody is watching, so it is guarded at three
+levels, each with a different failure semantics:
+
+- **Mouse fail-safe.** The robot leaves the pointer on the target, so
+  `isMouseMoved(target)` between steps means the operator took the mouse
+  back. The interesting line is ENTER: **before** it, nothing is registered —
+  the pair returns to the head of the queue and everything pauses; **after**
+  it, the pair IS registered — it counts as sent, the return click is
+  skipped, and the robot stops anyway. Putting a sent pair back would
+  double-register it.
+- **`ScanGuard`** (pure, in `core`): the operator describes the two codes
+  with regexes and the guard separates an **inversion** (both codes known,
+  wrong holes — one keystroke away from correct, so it can be swapped, by
+  hand with **F2** or automatically) from a **mismatch** (a code that fits
+  neither — nobody can guess the intent, so nothing is queued). An empty or
+  invalid pattern is an opinion not given: it never blocks the line.
+- **Duplicate guard**: the same label already in the session or in the queue
+  is a scanner that fired twice, not a second piece.
+
+A burst that dies halfway marks its row `NON INVIATA` and pauses the worker:
+no pair may disappear between the queue and the portal in silence.
+
+`RobotEngine` retries its `new Robot()` instead of remembering the failure —
+a display not ready at startup used to leave the app silently unable to type
+for the rest of the day.
 
 ## The design system (`AppTheme`)
 
@@ -134,6 +197,20 @@ machine gets eaten by another machine's title bar and font metrics. The
 cure is always the same: honest preferred size (fixed width, true height)
 plus `pack()`.
 
+## The manual inside the app
+
+The two operator manuals live in `src/app/docs/` and are read from the
+**classpath** (`Manuals`), so they travel inside the JAR: the shop-floor PC
+has one browser tab open and it is the portal. `Markdown` turns the subset
+the manuals use (headings, bold, code, lists, tables, rules) into an HTML
+fragment — escaping first, marking up second, so the document's own text can
+never become a tag — and `ManualPane` renders it with the theme's colors at a
+fixed size, so the settings dialog cannot grow to the length of the document.
+`javac` does not copy resources: the Ant `compile` target and the CI step both
+copy `src/**` non-Java files next to the classes, or the JAR would ship
+without the manual. The glyph rule covers them too — they are rendered in the
+app, so an arrow or a gear character would be a box on the operator's screen.
+
 ## Persistence
 
 `SettingsManager`: a `.properties` file in `user.home`, write-through
@@ -158,8 +235,18 @@ one corrupt line in the file must not kill the startup.
   `INVIATA`/`IN CODA` from the row itself — is built on the EDT and written
   off it, and all writes funnel through one synchronized read-merge-write so
   the journal thread and a verification can never lose each other's
-  sections. Run boundaries flush any pending write under the OLD identity,
-  so a run reset inside the coalescing window still lands its last row.
+  sections. Journal writes are queued on a **single writer** in submission
+  order: two of them at once are two read-modify-writes of the same file, and
+  one section is simply lost — the coalesced write of a run and the boundary
+  flush of the next overlap exactly when a session ends. The section **key
+  travels with the section**, never read from the writer thread, or a run
+  boundary crossed in between would file the old rows under the new run's
+  identity. Run identities are also strictly increasing (`nextRunStamp`):
+  the key is second-resolution, so two runs started inside one second would
+  share it and the second would overwrite the first — a whole run gone from
+  the day's report. Run boundaries flush any pending write under the OLD
+  identity, so a run reset inside the coalescing window still lands its last
+  row.
   A verification then replaces the live section with real verdicts;
   `mergeDaily` keys on the section identity and leaves every other run of
   the day intact.
@@ -172,10 +259,12 @@ A double-click re-registers a label: same lot re-sends it (the portal appends, s
 
 ## The test pyramid (zero frameworks)
 
-Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Ten suites, each born from a real failure:
+Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Eleven suites, each born from a real failure:
 
 | Suite | What it pins down | The bug that created it |
 |---|---|---|
+| ScanGuardTest | inversion vs mismatch; fail-safe geometry | the lot scanned into QR 1; an unreadable pointer read as a movement |
+| ManualRenderTest | the bundled manual loads and renders | — (new: the manual ships inside the JAR) |
 | RegistrationVerifierTest | the export↔run diff | — (the core, tested from day one) |
 | DownloadWatcherTest | fresh-file pickup, charsets | an ANSI export with accents |
 | VerificationTaskTest | click→wait→diff→retry | false reds from a slow site |

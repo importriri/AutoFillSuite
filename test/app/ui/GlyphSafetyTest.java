@@ -17,6 +17,10 @@ import java.util.stream.Stream;
 // Segoe UI / Consolas — ascii, latin-1, and the two punctuation marks below.
 // anything fancier is an icon (see Icons), drawn with Graphics2D, never typed.
 //
+// the bundled manuals fall under the same rule since they are rendered INSIDE
+// the app (Impostazioni > Manuale): an arrow or a gear glyph in the markdown is
+// a box on the operator's screen, exactly like one in a java string.
+//
 //   java -cp build app.ui.GlyphSafetyTest
 public final class GlyphSafetyTest {
 
@@ -40,6 +44,18 @@ public final class GlyphSafetyTest {
         }
         check("no unsafe glyph in any ui string literal", offenders.isEmpty());
         for (String o : offenders) System.out.println("       " + o);
+
+        List<String> manualOffenders = new ArrayList<>();
+        Path docs = Paths.get("src/app/docs");
+        if (Files.isDirectory(docs)) {
+            try (Stream<Path> files = Files.walk(docs)) {
+                for (Path f : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".md"))::iterator) {
+                    scanText(f, manualOffenders);
+                }
+            }
+        }
+        check("no unsafe glyph in the bundled manuals", manualOffenders.isEmpty());
+        for (String o : manualOffenders) System.out.println("       " + o);
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -66,6 +82,23 @@ public final class GlyphSafetyTest {
                     offenders.add(file.getFileName() + ":" + (i + 1)
                                 + "  U+" + Integer.toHexString(ch).toUpperCase()
                                 + "  in: " + trimmed);
+                    break;
+                }
+            }
+        }
+    }
+
+    // a manual is user-visible from its first character: no string rule, just text
+    private static void scanText(Path file, List<String> offenders) throws IOException {
+        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            for (int c = 0; c < line.length(); c++) {
+                char ch = line.charAt(c);
+                if (ch > 0xFF && ALLOWED_ABOVE_LATIN1.indexOf(ch) < 0) {
+                    offenders.add(file.getFileName() + ":" + (i + 1)
+                                + "  U+" + Integer.toHexString(ch).toUpperCase()
+                                + "  in: " + line.trim());
                     break;
                 }
             }

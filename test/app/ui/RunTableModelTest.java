@@ -21,6 +21,7 @@ public final class RunTableModelTest {
     public static void main(String[] args) {
         coveredRows_getTheirVerdict();
         uncoveredRow_staysPending_neverFakeGreen();
+        abortedPair_saysNotSent_neverSilentlyQueued();
         multipleRegistrations_readOkTimesN();
         lotFix_editsTheRow_andTheReportSeesIt();
         dayView_archivesRunsAndTranslatesIndexes();
@@ -80,6 +81,41 @@ public final class RunTableModelTest {
         check("the queued pair stays pending", m.stateAt(queued) == RunTableModel.PENDING);
         check("the queued pair is never painted OK",
               !"OK".equals(m.getValueAt(queued, 3)));
+    }
+
+    // a burst that dies halfway used to leave its row on "IN CODA" forever: the
+    // pair was gone from the queue, the operator saw a pair still waiting
+    private static void abortedPair_saysNotSent_neverSilentlyQueued() {
+        RunTableModel m = new RunTableModel();
+        m.beginRun("");
+        int row = m.addRow("QR-DEAD", "LOT-A");
+        m.updateOutcome(row, "IN CODA");
+        m.markFailed(row);
+
+        check("an aborted pair reads NON INVIATA", "NON INVIATA".equals(m.getValueAt(row, 3)));
+        check("an aborted pair is not pending",    m.stateAt(row) == RunTableModel.FAILED);
+        check("an aborted pair is not green",      m.stateAt(row) != RunTableModel.OK);
+        // and it must not survive a later verification as a red ghost: the
+        // verdict of the export always wins
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("QR-DEAD", 1);
+        m.clearOutcome();
+        m.applyResult(result(Arrays.<String>asList(), Arrays.<String>asList(),
+                             new LinkedHashMap<String, String>(), counts, 1));
+        check("a later verification overrides the aborted mark",
+              m.stateAt(row) == RunTableModel.OK);
+        check("markFailed on a row that does not exist is a no-op",
+              noThrow(m));
+    }
+
+    private static boolean noThrow(RunTableModel m) {
+        try {
+            m.markFailed(-1);
+            m.markFailed(999);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     private static void multipleRegistrations_readOkTimesN() {

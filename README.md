@@ -70,7 +70,9 @@ production data. The working HUD lives in
 - **The export is the ground truth.** The portal appends — it never edits —
   so a re-registered label raises its count (`OK ×2`), it is not a problem.
   Missing, unregistered and wrong-lot rows are.
-- **Fail-safe by default.** Move the mouse and the run stops. The app is
+- **Fail-safe by default.** Move the mouse and the run stops — in every mode,
+  including mid-burst in the scan queue, where the pair is put back only if
+  the save had not happened yet. The app is
   always-on-top, so before every run it checks whether it is *covering* one
   of its own click targets and steps aside — or refuses to start. A run the
   app never got to verify is offered for verification at the next launch.
@@ -101,7 +103,17 @@ so the operator scans at their own pace and nothing is lost. A worker drains
 the queue one short burst at a time, only when the scanner has been quiet
 for a moment — never mid-scan. Two tempos: **Continuo** (fire as they come,
 PAUSA any time) or **A blocco** (collect everything, release with ▶). The
-session is verified against the export every N pairs, or on demand.
+session check **falls due** every N pairs and is **taken at the first lull** —
+queue empty, nothing half-scanned, robot still — so it never cuts a block in
+half; it is never dropped either, and a manual **Verifica** works any time.
+
+Three safeties, because a burst types into a browser nobody is watching:
+**mouse moved, robot stopped** (before the save the pair returns to the head
+of the queue, after the save it stays counted — a sent pair is never re-sent),
+**inversion guard** (describe the two codes with a regex and the lot scanned
+into QR 1 is caught before it is queued — the **Scambia** button and **F2**
+swap the fields, optionally automatic), and a **duplicate guard** for the
+scanner that fires twice.
 
 **STAMPA** — the portal's print form ignores its own quantity field: any
 value above 1 only changes the numbering step (2 → 2,4,6,8…), still emitting
@@ -136,7 +148,10 @@ place, and the Report CSV button remains as a manual re-save.
 
 **HUD** — while the robot works the window drops to a slim bar at the
 bottom (band, counter, STOP) and restores itself when the verification
-ends. After every verification the app returns to the front with the caret
+ends, when a run is stopped, and whenever the robot stops for any other
+reason. In the scan tab it belongs to **released blocks only**: in continuo
+the operator is still scanning, and a window collapsing under their hands
+every couple of seconds is worse than no HUD at all. After every verification the app returns to the front with the caret
 in the scan field — ready for the next round.
 
 ## Architecture
@@ -145,9 +160,10 @@ in the scan field — ready for the next round.
 src/
 └── app/
     ├── Main.java                    # Entry point, system look & feel
-    ├── core/                        # Robot, tasks, watcher, verifier, report
-    ├── ui/                          # Cockpit, theme, panels, table, HUD
-    └── config/                      # Write-through .properties settings
+    ├── core/                        # Robot, tasks, watcher, verifier, report, scan guard
+    ├── ui/                          # Cockpit, theme, panels, table, HUD, manual renderer
+    ├── config/                      # Write-through .properties settings, manual loader
+    └── docs/                        # The operator manuals, bundled into the JAR
 ```
 
 The dependency rule: **core never imports ui** — `VerificationTask` talks to
@@ -155,8 +171,10 @@ a listener and delivers every callback already on the EDT, so panels never
 think about threads. The full walkthrough, decision by decision, lives in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-**User manuals:** [English](docs/MANUAL.en.md) ·
-[Italiano](docs/MANUAL.it.md)
+**User manuals:** [English](src/app/docs/MANUAL.en.md) ·
+[Italiano](src/app/docs/MANUAL.it.md) — they live under `src/` because they
+ship *inside* the JAR: the app renders them itself under **Impostazioni >
+Manuale**, so the one machine that matters never needs a browser tab.
 
 ## Tests
 

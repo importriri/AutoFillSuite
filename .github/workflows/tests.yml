@@ -18,11 +18,14 @@ jobs:
       - name: install xvfb
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
-      # same toolchain the project targets: bytecode 8, plain jdk, zero deps
+      # same toolchain the project targets: bytecode 8, plain jdk, zero deps.
+      # the manuals are classpath resources (settings > manuale): javac does not
+      # copy them, ant does — so the run mirrors what the JAR actually contains
       - name: compile (target java 8)
         run: |
           mkdir -p out
           javac --release 8 -Xlint:-options -d out $(find src test -name '*.java')
+          (cd src && find . -name '*.md' -exec cp --parents {} ../out/ ';')
 
       # each suite exits 1 on any failed check
       - name: core suites
@@ -31,6 +34,12 @@ jobs:
           java -cp out app.core.DownloadWatcherTest
           java -cp out app.core.VerificationTaskTest
           java -cp out app.core.CoreExtrasTest
+
+      # the scan tab's safeties: the lot scanned into QR 1 must be told apart
+      # from a code that fits nothing, and an unreadable pointer must never be
+      # read as "the operator grabbed the mouse"
+      - name: scan guard and mouse fail-safe
+        run: java -cp out app.core.ScanGuardTest
 
       # no emoji may reach a user-visible string: an explicit Font kills java's
       # glyph fallback and they render as empty boxes on windows
@@ -47,6 +56,11 @@ jobs:
       # cover (a dual-scan pair still sitting in the queue)
       - name: run table model
         run: java -cp out app.ui.RunTableModelTest
+
+      # the manual shipped inside the app: it must load from the classpath and
+      # render without the document's own text ever becoming markup
+      - name: manual loading and rendering
+        run: java -cp out app.ui.ManualRenderTest
 
       # a typed spinner value must reach the model without focus loss: the
       # app's buttons are focusable(false), so a click never blurs the editor

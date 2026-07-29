@@ -16,6 +16,8 @@ import java.util.Set;
 public class RunTableModel extends AbstractTableModel {
 
     public static final int PENDING = 0, OK = 1, MISSING = 2, NOT_REG = 3, WRONG = 4;
+    /** The robot stopped before this row reached the site: never sent, not lost. */
+    public static final int FAILED = 5;
 
     private static final String[] COLS = { "#", "Etichetta", "Lotto", "Esito" };
 
@@ -96,6 +98,16 @@ public class RunTableModel extends AbstractTableModel {
         if (row < 0 || row >= rows.size()) return;
         rows.get(row).sentAt = java.time.LocalTime.now()
             .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+    }
+
+    /** The burst died on this pair: the row says so instead of staying "IN CODA". */
+    public void markFailed(int row) {
+        if (row < 0 || row >= rows.size()) return;
+        Row r = rows.get(row);
+        r.state = FAILED;
+        r.outcome = "NON INVIATA";
+        int v = dayOffset() + row;
+        fireTableRowsUpdated(v, v);
     }
 
     public void setLot(int row, String lot) {

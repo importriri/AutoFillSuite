@@ -10,16 +10,15 @@ import java.awt.event.*;
  */
 public class RobotEngine {
 
+    /** A failed creation is retried, not remembered forever. */
+    private static final long RETRY_MS = 500;
+
     private static RobotEngine instance;
     private Robot robot;
+    private long lastAttempt = 0;
 
     private RobotEngine() {
-        try {
-            robot = new Robot();
-            robot.setAutoDelay(15);
-        } catch (AWTException e) {
-            System.err.println("[RobotEngine] Init failed: " + e.getMessage());
-        }
+        robot();   // the usual case: it works at once
     }
 
     public static RobotEngine getInstance() {
@@ -27,15 +26,67 @@ public class RobotEngine {
         return instance;
     }
 
-    public boolean isAvailable() { return robot != null; }
+    /**
+     * The app used to build its Robot once, in the constructor, and keep the
+     * failure: a display that was not ready yet at startup (a session just
+     * logged in, a remote desktop reconnecting) left the app unable to type for
+     * the rest of the day, silently. Now the attempt is repeated on demand.
+     */
+    private synchronized Robot robot() {
+        if (robot != null) return robot;
+        long now = System.currentTimeMillis();
+        if (now - lastAttempt < RETRY_MS) return null;
+        lastAttempt = now;
+        try {
+            Robot fresh = new Robot();
+            fresh.setAutoDelay(15);
+            robot = fresh;
+        } catch (AWTException e) {
+            System.err.println("[RobotEngine] Init failed: " + e.getMessage());
+        } catch (SecurityException e) {
+            System.err.println("[RobotEngine] Init refused: " + e.getMessage());
+        }
+        return robot;
+    }
 
-    // 5px tolerance for hardware micro-lag. Call BEFORE mouseMove.
+    public boolean isAvailable() { return robot() != null; }
+
+    /** Every action goes through here: no method may ever NPE on a missing Robot. */
+    private Robot required() {
+        Robot r = robot();
+        if (r == null) throw new IllegalStateException("Robot non disponibile");
+        return r;
+    }
+
+    /** Tolerance for hardware micro-lag: below this, the pointer did not move. */
+    public static final int TOLERANCE = 5;
+
+    /**
+     * Pure geometry, so the fail-safe can be tested without a screen.
+     * A null on either side is NOT a movement: an unreadable pointer must never
+     * stop a run that is going fine.
+     */
+    public static boolean movedFrom(Point now, Point target, int tolerance) {
+        if (now == null || target == null) return false;
+        return Math.abs(now.x - target.x) > tolerance
+            || Math.abs(now.y - target.y) > tolerance;
+    }
+
+    // Call BEFORE mouseMove: it compares against where the robot left the pointer.
     public boolean isMouseMoved(Point target) {
-        Point now = MouseInfo.getPointerInfo().getLocation();
-        return (Math.abs(now.x - target.x) > 5 || Math.abs(now.y - target.y) > 5);
+        return isMouseMoved(target, TOLERANCE);
+    }
+
+    public boolean isMouseMoved(Point target, int tolerance) {
+        // getPointerInfo() returns null on a locked session or a headless X:
+        // no reading is not the same as "the operator grabbed the mouse"
+        PointerInfo info = MouseInfo.getPointerInfo();
+        if (info == null) return false;
+        return movedFrom(info.getLocation(), target, tolerance);
     }
 
     public void click(int x, int y) throws InterruptedException {
+        Robot robot = required();
         robot.mouseMove(x, y);
         Thread.sleep(30);
         robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
@@ -44,6 +95,7 @@ public class RobotEngine {
     }
 
     public void doubleClick(int x, int y) throws InterruptedException {
+        Robot robot = required();
         robot.mouseMove(x, y);
         Thread.sleep(30);
         robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
@@ -56,12 +108,14 @@ public class RobotEngine {
     }
 
     public void pressTab() throws InterruptedException {
+        Robot robot = required();
         robot.keyPress(KeyEvent.VK_TAB);
         robot.keyRelease(KeyEvent.VK_TAB);
         Thread.sleep(60);
     }
 
     public void pressEnter() throws InterruptedException {
+        Robot robot = required();
         robot.keyPress(KeyEvent.VK_ENTER);
         robot.keyRelease(KeyEvent.VK_ENTER);
         Thread.sleep(30);
@@ -73,6 +127,7 @@ public class RobotEngine {
 
     // Paste text using clipboard + CTRL+V (avoids accidental DOM selection).
     public void pasteText(String text) throws InterruptedException {
+        Robot robot = required();
         Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
         cb.setContents(new StringSelection(text), null);
         Thread.sleep(35);
@@ -85,6 +140,7 @@ public class RobotEngine {
 
     // Reads whatever is in the currently focused browser field via CTRL+A+C.
     public String readFocusedFieldContent() throws InterruptedException {
+        Robot robot = required();
         Toolkit.getDefaultToolkit().getSystemClipboard()
             .setContents(new StringSelection(""), null);
         Thread.sleep(30);

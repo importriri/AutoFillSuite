@@ -34,7 +34,7 @@ public class ResultsPanel extends JPanel {
     private final RunTableModel model = new RunTableModel();
 
     // daily file, one section per run; the start time is the section's identity
-    private String runStamp = newStamp();
+    private String runStamp = nextRunStamp();
     private String runDate  = today();
     private String runMode  = "-";
     private String runLot   = "-";
@@ -200,9 +200,32 @@ public class ResultsPanel extends JPanel {
         buttons(false, false);
     }
 
+    private static final java.time.format.DateTimeFormatter STAMP =
+        java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    /** Display time: whenever it is asked, that is the answer. */
     private static String newStamp() {
-        return java.time.LocalTime.now()
-            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        return java.time.LocalTime.now().format(STAMP);
+    }
+
+    // The last identity handed out, so the next one is always later. NO explicit
+    // initializer: runStamp is built by a field initializer above, and an "= null"
+    // here would run after it and forget the very first run's stamp.
+    private java.time.LocalTime lastRunTime;
+
+    /**
+     * IDENTITY, not display: a section of the daily file is keyed by date and
+     * stamp, so two runs started inside the same second would share one key and
+     * the second would overwrite the first — a whole run gone from the report
+     * of the day. Stamps handed out here are strictly increasing.
+     */
+    private String nextRunStamp() {
+        java.time.LocalTime now = java.time.LocalTime.now().withNano(0);
+        if (lastRunTime != null && !now.isAfter(lastRunTime)) {
+            now = lastRunTime.plusSeconds(1);
+        }
+        lastRunTime = now;
+        return now.format(STAMP);
     }
 
     private static String today() {
@@ -211,7 +234,7 @@ public class ResultsPanel extends JPanel {
 
     public void beginRun(int total, String lot) {
         flushJournal();
-        runStamp = newStamp();
+        runStamp = nextRunStamp();
         runDate  = today();
         runMode  = "intervallo";
         runLot   = lot;
@@ -236,7 +259,7 @@ public class ResultsPanel extends JPanel {
 
     public void beginSession() {
         flushJournal();
-        runStamp = newStamp();
+        runStamp = nextRunStamp();
         runDate  = today();
         runMode  = "scansione";
         runLot   = "-";
@@ -252,7 +275,7 @@ public class ResultsPanel extends JPanel {
     /** Fresh session by the operator's hand: table and state back to idle. */
     public void resetIdle() {
         flushJournal();
-        runStamp = newStamp();
+        runStamp = nextRunStamp();
         runDate  = today();
         runMode  = "-";
         runLot   = "-";
@@ -277,6 +300,12 @@ public class ResultsPanel extends JPanel {
         touchJournal();
         model.markSentNow(row);
         model.updateOutcome(row, "INVIATA");
+    }
+
+    /** The robot stopped before this pair reached the site: never journal it. */
+    public void markNotSent(int row, String why) {
+        model.markFailed(row);
+        lblHint.setText(why);
     }
 
     public void sessionCounters(int sent, int queued) {
@@ -409,13 +438,15 @@ public class ResultsPanel extends JPanel {
     /** The ONLY way a section reaches the daily file. Synchronized so the
      *  journal thread and a verification write can never interleave their
      *  read-merge-write cycles and lose each other's sections. */
-    private synchronized void writeMerged(File out, List<String> section)
+    /** The key travels WITH the section: reading runStamp here would read it
+     *  from the journal thread, and a run boundary crossed in between would
+     *  file the old run's rows under the new run's identity. */
+    private synchronized void writeMerged(File out, String key, List<String> section)
             throws IOException {
         List<String> existing = out.exists()
             ? Files.readAllLines(out.toPath(), StandardCharsets.UTF_8)
             : new java.util.ArrayList<String>();
-        List<String> merged = RunReport.mergeDaily(
-            existing, RunReport.sectionKey(runDate, runStamp), section);
+        List<String> merged = RunReport.mergeDaily(existing, key, section);
         StringBuilder sb = new StringBuilder();
         for (String l : merged) sb.append(l).append(System.lineSeparator());
         Files.write(out.toPath(), sb.toString().getBytes(StandardCharsets.UTF_8));
@@ -431,7 +462,7 @@ public class ResultsPanel extends JPanel {
         section.add(RunReport.verifyLine(newStamp(), lastFile, lastAttempts, lastFresh));
         section.add("Aggiornato;" + today() + " " + newStamp());
         try {
-            writeMerged(out, section);
+            writeMerged(out, RunReport.sectionKey(runDate, runStamp), section);
             lblHint.setText((reportWritten ? "Report aggiornato: " : "Report salvato: ")
                             + out.getName());
             lblHint.setToolTipText(out.getAbsolutePath());
@@ -464,6 +495,23 @@ public class ResultsPanel extends JPanel {
         }
     }
 
+    /**
+     * ONE writer, in submission order. Every write is a read-modify-write of the
+     * whole daily file, so two of them at once lose a section outright: the
+     * coalesced write of a run and the boundary flush of the next one overlap
+     * exactly at the moment a session ends, which is the moment the file matters.
+     *
+     * Not a daemon — a write in flight keeps the JVM alive, so the last send of
+     * the day lands even if the operator closes the app right after. The idle
+     * thread times out instead, so it never keeps the app from exiting either.
+     */
+    private static final java.util.concurrent.ThreadPoolExecutor JOURNAL =
+        new java.util.concurrent.ThreadPoolExecutor(1, 1, 5,
+            java.util.concurrent.TimeUnit.SECONDS,
+            new java.util.concurrent.LinkedBlockingQueue<Runnable>(),
+            r -> new Thread(r, "report-journal"));
+    static { JOURNAL.allowCoreThreadTimeOut(true); }
+
     private void journal() {
         List<RunReport.Entry> entries = model.reportEntries();
         if (entries.isEmpty()) return;
@@ -473,13 +521,14 @@ public class ResultsPanel extends JPanel {
         section.addAll(RunReport.lines(RunReport.liveCsv(entries).trim()));
         section.add("Aggiornato;" + today() + " " + newStamp());
         reportWritten = true;   // the section exists: later hints say "aggiornato"
-        new Thread(() -> {
+        final String key = RunReport.sectionKey(runDate, runStamp);
+        JOURNAL.execute(() -> {
             try {
-                writeMerged(out, section);
+                writeMerged(out, key, section);
             } catch (IOException ex) {
                 System.err.println("[journal] " + ex.getMessage());
             }
-        }, "report-journal").start();
+        });
     }
 
     // ── crash recovery ─────────────────────────────────────────────────────

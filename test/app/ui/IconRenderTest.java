@@ -57,6 +57,7 @@ public final class IconRenderTest {
             { "retry",   Icons.retry(SIZE, INK) },
             { "check",   Icons.check(SIZE, INK) },
             { "cross",   Icons.cross(SIZE, INK) },
+            { "swap",    Icons.swap(SIZE, INK) },
         };
         for (Object[] entry : all) {
             BufferedImage img = render((Icon) entry[1]);

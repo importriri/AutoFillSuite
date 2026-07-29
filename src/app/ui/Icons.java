@@ -167,6 +167,38 @@ public final class Icons {
         return retry(size, c);
     }
 
+    /** Two arrows, opposite ways — swap the two QR fields. */
+    public static Icon swap(int size, Color c) {
+        return new Base(size, c) {
+            @Override void draw(Graphics2D g) {
+                g.setStroke(new BasicStroke(Math.max(1.4f, size * 0.12f),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                float pad = size * 0.18f;
+                float top = size * 0.34f, bot = size * 0.66f;
+                float head = size * 0.15f;
+                // top rail points right, bottom rail points left
+                g.drawLine(Math.round(pad), Math.round(top),
+                           Math.round(size - pad), Math.round(top));
+                g.drawLine(Math.round(pad), Math.round(bot),
+                           Math.round(size - pad), Math.round(bot));
+
+                Path2D right = new Path2D.Float();
+                right.moveTo(size - pad, top);
+                right.lineTo(size - pad - head, top - head);
+                right.lineTo(size - pad - head, top + head);
+                right.closePath();
+                g.fill(right);
+
+                Path2D left = new Path2D.Float();
+                left.moveTo(pad, bot);
+                left.lineTo(pad + head, bot - head);
+                left.lineTo(pad + head, bot + head);
+                left.closePath();
+                g.fill(left);
+            }
+        };
+    }
+
     /** X — clear the fields. */
     public static Icon cross(int size, Color c) {
         return new Base(size, c) {
