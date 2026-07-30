@@ -2,14 +2,14 @@
 build/
 dist/
 
-# NetBeans private settings (specifici del tuo PC)
+# NetBeans private settings
 nbproject/private/
 
-# Build di test locale (CI usa out/)
+# Local test build output (CI uses out/)
 out/
 
-# File di configurazione utente (coordinate, tempi salvati) — vive in
-# user.home come .autofill_suite.properties, mai dentro il repo
+# User configuration lives in user.home as
+# .autofill_suite.properties and never belongs in the repository
 .autofill_suite.properties
 
 # OS
