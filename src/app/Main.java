@@ -2,6 +2,7 @@ package app;
 
 import app.ui.AppTheme;
 import app.ui.MainWindow;
+import app.ui.ScanTabSupport;
 
 import javax.swing.*;
 import java.awt.*;
@@ -22,6 +23,7 @@ public class Main {
         UIManager.put("OptionPane.background", AppTheme.BASE);
         UIManager.put("OptionPane.messageForeground", AppTheme.TEXT);
 
+        ScanTabSupport.install();
         SwingUtilities.invokeLater(MainWindow::new);
     }
 }
