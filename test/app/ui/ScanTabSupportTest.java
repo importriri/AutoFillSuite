@@ -22,7 +22,7 @@ public final class ScanTabSupportTest {
         SwingUtilities.invokeAndWait(ScanTabSupportTest::run);
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
-        if (failed > 0) System.exit(1);
+        System.exit(failed > 0 ? 1 : 0);
     }
 
     private static void run() {
