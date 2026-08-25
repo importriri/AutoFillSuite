@@ -52,12 +52,18 @@ Per N etichette consecutive dello stesso lotto.
 Per pezzi misti: due QR per pezzo (etichetta in **QR 1**, lotto in **QR 2**).
 
 1. Spara QR 1 e QR 2. La coppia entra in **coda** e i campi si svuotano
-   subito — continua a sparare al tuo ritmo, non si perde niente.
+   subito — continua a sparare al tuo ritmo, non si perde niente. Sul secondo
+   campo funzionano sia il suffisso **INVIO** sia il suffisso **TAB** dello
+   scanner; TAB su QR 1 continua invece a spostare normalmente il cursore.
 2. Due ritmi:
    - **Continuo**: il robot spara ogni coppia appena lo scanner è fermo da
      un attimo. **PAUSA** lo trattiene quando serve.
    - **A blocco**: le coppie si accumulano (**IN CODA** le conta); premi
      **REGISTRA TUTTO (n)** per rilasciare tutto il blocco.
+   - Prima di rilasciare il blocco puoi selezionare una riga **IN CODA** nei
+     risultati e usare **Modifica** per correggere QR 1 / QR 2 oppure
+     **Elimina** per rimuoverla. Appena parte **REGISTRA TUTTO**, la coda non
+     e' piu' modificabile.
 3. La sessione viene verificata da sola ogni N pezzi (vedi §5), o a
    richiesta con **Verifica**. **Nuova sessione** ne apre una pulita.
 4. La verifica automatica **non entra mai in mezzo a un blocco**: matura al

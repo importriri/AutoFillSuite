@@ -36,7 +36,12 @@ fields clear immediately, so scanning can continue while the worker sends short
 bursts to the browser.
 
 The queue supports continuous and block release. It rejects reversed scans,
-malformed pairs, mismatches and unsafe duplicates before they are sent.
+malformed pairs, mismatches and unsafe duplicates before they are sent. In
+block mode, queued rows can be selected, edited or removed before
+`REGISTRA TUTTO`; once release starts, those rows become immutable.
+
+Scanners configured with a TAB suffix are supported on QR 2 through the same
+acceptance path as ENTER. TAB on QR 1 and Shift+TAB keep normal focus traversal.
 
 ### Printing helper
 

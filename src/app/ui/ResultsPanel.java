@@ -47,6 +47,19 @@ public class ResultsPanel extends JPanel {
     public interface LotFixer { void fix(int row, String code, String newLot); }
     private LotFixer lotFixer;
     public void setLotFixer(LotFixer f) { lotFixer = f; }
+
+    public interface QueueEditor {
+        boolean canEdit(int row);
+        void edit(int row);
+        void delete(int row);
+    }
+    private QueueEditor queueEditor;
+    private boolean queueEditMode = false;
+
+    public void setQueueEditor(QueueEditor editor) {
+        queueEditor = editor;
+        refreshQueueActions();
+    }
     private final JTable table = new JTable(model);
     private final JLabel banner    = AppTheme.banner();
     private final JLabel lblHint   = new JLabel("", SwingConstants.CENTER);
@@ -59,6 +72,8 @@ public class ResultsPanel extends JPanel {
     private final JButton btnPending = AppTheme.primary("VERIFICA ORA", AppTheme.PEACH,
         Icons.search(AppTheme.ICON, AppTheme.ON_ACCENT));
     private final JButton btnPendingNo = AppTheme.secondary("Ignora", null);
+    private final JButton btnQueueEdit = AppTheme.secondary("Modifica", null);
+    private final JButton btnQueueDelete = AppTheme.secondary("Elimina", null);
 
     private Runnable onRetry  = () -> {};
     private Runnable onCancel = () -> {};
@@ -75,11 +90,18 @@ public class ResultsPanel extends JPanel {
 
         btnRetry.addActionListener(e -> onRetry.run());
         btnCancel.addActionListener(e -> onCancel.run());
+        btnQueueEdit.addActionListener(e -> runQueueAction(true));
+        btnQueueDelete.addActionListener(e -> runQueueAction(false));
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) refreshQueueActions();
+        });
         btnRetry.setVisible(false);
         btnCancel.setVisible(false);
         btnReport.setVisible(false);
         btnPending.setVisible(false);
         btnPendingNo.setVisible(false);
+        btnQueueEdit.setVisible(false);
+        btnQueueDelete.setVisible(false);
         idle();
     }
 
@@ -176,6 +198,8 @@ public class ResultsPanel extends JPanel {
 
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 2));
         btns.setOpaque(false);
+        btns.add(btnQueueEdit);
+        btns.add(btnQueueDelete);
         btns.add(btnRetry);
         btns.add(btnCancel);
         btns.add(btnReport);
@@ -233,6 +257,8 @@ public class ResultsPanel extends JPanel {
     }
 
     public void beginRun(int total, String lot) {
+        queueEditMode = false;
+        refreshQueueActions();
         flushJournal();
         runStamp = nextRunStamp();
         runDate  = today();
@@ -258,6 +284,8 @@ public class ResultsPanel extends JPanel {
     // ── dual scan session ──────────────────────────────────────────────────
 
     public void beginSession() {
+        queueEditMode = true;
+        refreshQueueActions();
         flushJournal();
         runStamp = nextRunStamp();
         runDate  = today();
@@ -267,13 +295,15 @@ public class ResultsPanel extends JPanel {
         total = 0;
         model.beginRun("");
         sessionCounters(0, 0);
-        lblHint.setText("Doppio click: etichetta = copia · lotto = registra di nuovo");
+        lblHint.setText("A blocco: seleziona una riga IN CODA per modificarla o eliminarla");
         lblFooter.setText("");
         buttons(false, false);
     }
 
     /** Fresh session by the operator's hand: table and state back to idle. */
     public void resetIdle() {
+        queueEditMode = false;
+        refreshQueueActions();
         flushJournal();
         runStamp = nextRunStamp();
         runDate  = today();
@@ -293,7 +323,60 @@ public class ResultsPanel extends JPanel {
         int row = model.addRow(code, lot);
         model.updateOutcome(row, "IN CODA");
         scrollToLast();
+        refreshQueueActions();
         return row;
+    }
+
+    public boolean updateQueuedPair(int row, String code, String lot) {
+        boolean changed = model.updateQueuedPair(row, code, lot);
+        if (changed) {
+            lblHint.setText("Coppia aggiornata prima dell'invio");
+            refreshQueueActions();
+        }
+        return changed;
+    }
+
+    public boolean removeQueuedPair(int row) {
+        boolean removed = model.removeQueuedPair(row);
+        if (removed) {
+            table.clearSelection();
+            lblHint.setText("Coppia rimossa dalla coda");
+            refreshQueueActions();
+        }
+        return removed;
+    }
+
+    public void queueActionsChanged() {
+        refreshQueueActions();
+    }
+
+    private int selectedRunRow() {
+        int view = table.getSelectedRow();
+        if (view < 0) return -1;
+        int visual = table.convertRowIndexToModel(view);
+        return visual - model.dayOffset();
+    }
+
+    private void runQueueAction(boolean edit) {
+        int row = selectedRunRow();
+        if (row < 0 || queueEditor == null || !queueEditor.canEdit(row)) {
+            refreshQueueActions();
+            return;
+        }
+        if (edit) queueEditor.edit(row);
+        else queueEditor.delete(row);
+        refreshQueueActions();
+    }
+
+    private void refreshQueueActions() {
+        if (btnQueueEdit == null || btnQueueDelete == null) return;
+        int row = selectedRunRow();
+        boolean enabled = queueEditMode && queueEditor != null
+            && row >= 0 && queueEditor.canEdit(row);
+        btnQueueEdit.setVisible(queueEditMode);
+        btnQueueDelete.setVisible(queueEditMode);
+        btnQueueEdit.setEnabled(enabled);
+        btnQueueDelete.setEnabled(enabled);
     }
 
     public void markSent(int row) {
@@ -435,12 +518,15 @@ public class ResultsPanel extends JPanel {
         return new File(dir, "AutoFillSuite_report_" + today() + ".csv");
     }
 
-    /** The ONLY way a section reaches the daily file. Synchronized so the
-     *  journal thread and a verification write can never interleave their
-     *  read-merge-write cycles and lose each other's sections. */
-    /** The key travels WITH the section: reading runStamp here would read it
-     *  from the journal thread, and a run boundary crossed in between would
-     *  file the old run's rows under the new run's identity. */
+    /**
+     * The only way a section reaches the daily file. Synchronization keeps the
+     * journal thread and verification from interleaving read-merge-write cycles
+     * and losing each other's sections.
+     *
+     * The key travels with the section: reading runStamp here would read it
+     * from the journal thread, and a run boundary crossed in between would
+     * file the old run's rows under the new run's identity.
+     */
     private synchronized void writeMerged(File out, String key, List<String> section)
             throws IOException {
         List<String> existing = out.exists()

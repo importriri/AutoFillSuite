@@ -56,8 +56,8 @@ public class ScanModePanel extends JPanel {
 
     // a scanned pair: the two QRs and its table row
     private static final class Pair {
-        final String q1, q2;
-        final int row;
+        String q1, q2;
+        int row;
         Pair(String q1, String q2, int row) { this.q1 = q1; this.q2 = q2; this.row = row; }
     }
 
@@ -99,6 +99,11 @@ public class ScanModePanel extends JPanel {
     public ScanModePanel(ResultsPanel results, RunContext ctx) {
         this.results = results;
         this.ctx = ctx;
+        results.setQueueEditor(new ResultsPanel.QueueEditor() {
+            @Override public boolean canEdit(int row) { return canEditQueued(row); }
+            @Override public void edit(int row) { editQueued(row); }
+            @Override public void delete(int row) { deleteQueued(row); }
+        });
         setLayout(new BorderLayout());
         setBackground(AppTheme.BASE);
         setBorder(BorderFactory.createEmptyBorder(0, 9, 8, 9));
@@ -390,11 +395,117 @@ public class ScanModePanel extends JPanel {
 
     /** Same label already sent in this session, or already waiting in the queue. */
     private boolean alreadyKnown(String code) {
+        return alreadyKnown(code, null);
+    }
+
+    private boolean alreadyKnown(String code, Pair except) {
         if (session.containsKey(code)) return true;
         for (Pair p : queue) {
-            if (p.q1.equals(code)) return true;
+            if (p != except && p.q1.equals(code)) return true;
         }
         return false;
+    }
+
+    private Pair queuedAt(int row) {
+        for (Pair p : queue) if (p.row == row) return p;
+        return null;
+    }
+
+    private boolean canEditQueued(int row) {
+        return batchMode && !releasing && !blockRunning && !burstBusy
+            && !verifying && queuedAt(row) != null;
+    }
+
+    private void editQueued(int row) {
+        Pair pair = queuedAt(row);
+        if (pair == null || !canEditQueued(row)) return;
+
+        JTextField q1Field = new JTextField(pair.q1, 34);
+        JTextField q2Field = new JTextField(pair.q2, 34);
+        JPanel form = new JPanel(new GridLayout(0, 1, 0, 4));
+        form.add(new JLabel("QR 1"));
+        form.add(q1Field);
+        form.add(new JLabel("QR 2"));
+        form.add(q2Field);
+
+        for (;;) {
+            int choice = JOptionPane.showConfirmDialog(
+                this, form, "Modifica coppia in coda",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (choice != JOptionPane.OK_OPTION) return;
+            if (!canEditQueued(row)) {
+                Toolkit.getDefaultToolkit().beep();
+                setState(ERROR, "La coda e' gia' partita: modifica annullata");
+                return;
+            }
+
+            String q1 = q1Field.getText().trim();
+            String q2 = q2Field.getText().trim();
+            if (q1.isEmpty() || q2.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "QR 1 e QR 2 sono obbligatori.",
+                    "Coppia incompleta", JOptionPane.WARNING_MESSAGE);
+                continue;
+            }
+
+            int advice = ScanGuard.inspect(q1, q2,
+                cfg.get(SettingsManager.SCAN_QR1_PATTERN, ""),
+                cfg.get(SettingsManager.SCAN_QR2_PATTERN, ""));
+            if (advice == ScanGuard.INVERTED) {
+                if (cfg.getBool(SettingsManager.SCAN_AUTOSWAP, false)) {
+                    String t = q1; q1 = q2; q2 = t;
+                    q1Field.setText(q1);
+                    q2Field.setText(q2);
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                        "I due QR sembrano invertiti. Correggili o usa Scambia.",
+                        "QR invertiti", JOptionPane.WARNING_MESSAGE);
+                    continue;
+                }
+            } else if (advice == ScanGuard.MISMATCH) {
+                JOptionPane.showMessageDialog(this,
+                    "Il formato dei QR non corrisponde alle regole configurate.",
+                    "Formato non riconosciuto", JOptionPane.WARNING_MESSAGE);
+                continue;
+            }
+
+            if (cfg.getBool(SettingsManager.SCAN_DUP_GUARD, true)
+                    && alreadyKnown(q1, pair)) {
+                JOptionPane.showMessageDialog(this,
+                    "Questa etichetta e' gia' presente nella sessione o nella coda.",
+                    "Duplicato", JOptionPane.WARNING_MESSAGE);
+                continue;
+            }
+
+            pair.q1 = q1;
+            pair.q2 = q2;
+            results.updateQueuedPair(row, q1, q2);
+            results.sessionCounters(sent, queue.size());
+            refreshBanner();
+            updateFireButton();
+            return;
+        }
+    }
+
+    private void deleteQueued(int row) {
+        Pair pair = queuedAt(row);
+        if (pair == null || !canEditQueued(row)) return;
+        int choice = JOptionPane.showConfirmDialog(
+            this,
+            "Rimuovere dalla coda?\n\nQR 1: " + pair.q1 + "\nQR 2: " + pair.q2,
+            "Elimina coppia",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.YES_OPTION || !canEditQueued(row)) return;
+
+        if (!queue.remove(pair)) return;
+        if (!results.removeQueuedPair(row)) {
+            queue.addLast(pair);
+            return;
+        }
+        for (Pair p : queue) if (p.row > row) p.row--;
+        results.sessionCounters(sent, queue.size());
+        refreshBanner();
+        updateFireButton();
     }
 
     private static Map<String, Point> targets(int cx, int cy) {
@@ -743,6 +854,7 @@ public class ScanModePanel extends JPanel {
             btnFire.setIcon(Icons.pause(AppTheme.ICON, AppTheme.ON_ACCENT));
             btnFire.setEnabled(true);
         }
+        results.queueActionsChanged();
     }
 
     private void newSession() {

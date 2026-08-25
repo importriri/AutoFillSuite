@@ -97,6 +97,14 @@ scanned, the release button showing (0) disabled, the count starting from
 the second scan, and `newSession()` unable to empty the hand. Nothing
 leaves a queue until it can actually be processed.
 
+In **A blocco**, queued rows remain mutable only before release. The results
+table delegates **Modifica** / **Elimina** back to `ScanModePanel`, which owns
+the real deque. An edit changes the same `Pair` object the worker will later
+consume; a delete removes that pair and closes the run-row index gap. The
+controls are disabled as soon as release, a burst or verification can own the
+queue, and sent rows are immutable. This keeps table state and worker state
+from becoming two different queues.
+
 The session verification is **owed, then taken**: every N sends it sets a
 `verifyDue` flag, and `maybeAutoVerify()` only fires it when the queue is
 empty, the fields are empty and no burst is in flight — retried by a 1s
@@ -153,6 +161,10 @@ levels, each with a different failure semantics:
   invalid pattern is an opinion not given: it never blocks the line.
 - **Duplicate guard**: the same label already in the session or in the queue
   is a scanner that fired twice, not a second piece.
+- **Scanner TAB suffix**: Swing consumes TAB before a text field can treat it
+  like ENTER, so `ScanTabSupport` intercepts only an unmodified TAB on QR 2
+  inside `ScanModePanel` and posts the field's existing ActionEvent. QR 1,
+  Shift+TAB and every field outside scan mode keep normal focus traversal.
 
 A burst that dies halfway marks its row `NON INVIATA` and pauses the worker:
 no pair may disappear between the queue and the portal in silence.

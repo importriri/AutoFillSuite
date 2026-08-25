@@ -51,12 +51,17 @@ For N consecutive labels of the same batch.
 For mixed items: two QR codes per piece (label in **QR 1**, lot in **QR 2**).
 
 1. Scan QR 1 and QR 2. The pair enters the **queue** and the fields clear
-   at once — keep scanning at your own pace, nothing is lost.
+   at once — keep scanning at your own pace, nothing is lost. The second field
+   accepts either an **ENTER** or **TAB** scanner suffix; TAB on QR 1 keeps
+   normal focus traversal.
 2. Two tempos:
    - **Continuo**: the robot fires each pair as soon as the scanner has
      been quiet for a moment. **PAUSA** holds it whenever you need.
    - **A blocco**: pairs pile up (`IN CODA` counts them); press
      **REGISTRA TUTTO (n)** to release the whole block.
+   - Before releasing the block, select an **IN CODA** row in the results and
+     use **Modifica** to correct QR 1 / QR 2 or **Elimina** to remove it. As
+     soon as **REGISTRA TUTTO** starts, queued rows are locked.
 3. The session is verified automatically every N pieces (see §5), or on
    demand with **Verifica**. **Nuova sessione** starts a clean one.
 4. The automatic check **never cuts into a block**: it falls due at the Nth

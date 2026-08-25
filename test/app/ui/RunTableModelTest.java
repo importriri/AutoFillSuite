@@ -24,6 +24,7 @@ public final class RunTableModelTest {
         abortedPair_saysNotSent_neverSilentlyQueued();
         multipleRegistrations_readOkTimesN();
         lotFix_editsTheRow_andTheReportSeesIt();
+        queuedRows_canBeEditedAndDeletedBeforeSend();
         dayView_archivesRunsAndTranslatesIndexes();
         dayView_reportNeverReadsHistory();
         dayView_rollsOverAtMidnight();
@@ -143,6 +144,38 @@ public final class RunTableModelTest {
         check("the send time is stamped", e.sentAt != null && e.sentAt.length() == 8);
         int unsent = m.addRow("QR-X", "L");
         check("an unsent row has no time", m.reportEntries().get(unsent).sentAt == null);
+    }
+
+    private static void queuedRows_canBeEditedAndDeletedBeforeSend() {
+        RunTableModel m = new RunTableModel();
+        m.beginRun("");
+        int a = m.addRow("QR-A", "LOT-A");
+        int b = m.addRow("QR-B", "LOT-B");
+        int c = m.addRow("QR-C", "LOT-C");
+        m.updateOutcome(a, "IN CODA");
+        m.updateOutcome(b, "IN CODA");
+        m.updateOutcome(c, "IN CODA");
+
+        check("a queued pair can be edited before send",
+              m.updateQueuedPair(b, "QR-B2", "LOT-B2"));
+        check("editing changes both QR and lot",
+              "QR-B2".equals(m.codeAt(b)) && "LOT-B2".equals(m.lotAt(b)));
+
+        check("a queued pair can be deleted before send", m.removeQueuedPair(a));
+        check("deleting closes the row gap",
+              m.getRowCount() == 2 && "QR-B2".equals(m.codeAt(0))
+              && Integer.valueOf(1).equals(m.getValueAt(0, 0)));
+        check("the deleted pair is absent from the report",
+              m.reportEntries().size() == 2
+              && "QR-B2".equals(m.reportEntries().get(0).code));
+
+        m.markSentNow(0);
+        check("a sent pair cannot be edited from the queue controls",
+              !m.updateQueuedPair(0, "NO", "NO"));
+        check("a sent pair cannot be deleted from the queue controls",
+              !m.removeQueuedPair(0));
+        check("the sent pair stays unchanged",
+              "QR-B2".equals(m.codeAt(0)) && "LOT-B2".equals(m.lotAt(0)));
     }
 
     // the toggle: last run vs everything registered today. history is shown,

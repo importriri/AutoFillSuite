@@ -294,10 +294,16 @@ public final class StartupSmokeTest {
         JButton hudBtn = findButton(main, "HUD");
         check("the HUD button is in the header", hudBtn != null);
         if (hudBtn != null) {
+            if (main instanceof MainWindow) {
+                check("the cockpit is restored before the manual HUD test",
+                      waitFor(() -> !((MainWindow) main).isHudMode(), 5000));
+            }
             int fullW = main.getWidth(), fullH = main.getHeight();
             SwingUtilities.invokeAndWait(hudBtn::doClick);
-            Thread.sleep(350);
-            check("the HUD shrinks the window", main.getHeight() < fullH);
+            check("the HUD shrinks the window",
+                  waitFor(() -> main instanceof MainWindow
+                              && ((MainWindow) main).isHudMode()
+                              && main.getHeight() < fullH, 3000));
             // the big number was clipped at the top: 108 was the OUTER height
             // and the title bar starved the row. with honest preferred sizes
             // this walk catches it wherever the platform metrics bite.

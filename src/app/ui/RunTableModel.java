@@ -22,7 +22,7 @@ public class RunTableModel extends AbstractTableModel {
     private static final String[] COLS = { "#", "Etichetta", "Lotto", "Esito" };
 
     private static final class Row {
-        final String code;
+        String code;
         String lot;
         String sentAt;                 // null = never sent
         String outcome = "—";
@@ -115,6 +115,28 @@ public class RunTableModel extends AbstractTableModel {
         rows.get(row).lot = lot;
         int v = dayOffset() + row;
         fireTableRowsUpdated(v, v);
+    }
+
+    public boolean updateQueuedPair(int row, String code, String lot) {
+        if (row < 0 || row >= rows.size()) return false;
+        Row r = rows.get(row);
+        if (r.sentAt != null || r.state != PENDING) return false;
+        r.code = code;
+        r.lot = lot;
+        r.outcome = "IN CODA";
+        int v = dayOffset() + row;
+        fireTableRowsUpdated(v, v);
+        return true;
+    }
+
+    public boolean removeQueuedPair(int row) {
+        if (row < 0 || row >= rows.size()) return false;
+        Row r = rows.get(row);
+        if (r.sentAt != null || r.state != PENDING) return false;
+        int v = dayOffset() + row;
+        rows.remove(row);
+        fireTableRowsDeleted(v, v);
+        return true;
     }
 
     public String lotAt(int row) { return at(row).lot; }
