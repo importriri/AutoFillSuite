@@ -152,10 +152,13 @@ own in its settings tab) the app clicks **Export CSV** on the portal, picks
 up the fresh download, and diffs the whole export against the run:
 
 - **OK** — registered, right lot. `OK ×2` means it was registered twice:
-  the portal appends, so a re-run only raises the count.
+  the portal appends, so a re-run only raises the count. The last one wins:
+  if a label was registered with several lots, the last counts, and if the
+  last is not the expected one the row is **LOTTO ERRATO**.
 - **MANCANTE** — sent but not in the export.
 - **NON REGISTRATA** — in the export but not expected.
-- **LOTTO ERRATO: ...** — registered under another lot.
+- **LOTTO ERRATO: ...** — the last registration carries another lot (the
+  one the portal holds now).
 - **NON INVIATA** — the robot stopped before delivering it: it never reached
   the portal at all.
 

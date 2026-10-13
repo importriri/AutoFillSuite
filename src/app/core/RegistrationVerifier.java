@@ -73,28 +73,49 @@ public final class RegistrationVerifier {
             // the export appends, never updates: a print lands as "<label>|" and a
             // late registration adds a NEW row with the lot — the old empty row stays
             // behind (seen in a real export: same label, empty at row 8199, registered
-            // at row 15728). so the question is never "what does the first row say",
-            // it is "did the expected lot ever land on this label".
+            // at row 15728). and the portal keeps the LAST registration: registering
+            // a label again with another lot is a correction. so the question is
+            // "what is the last non-empty lot of this label" — not "did the expected
+            // lot ever land", which painted right-then-wrong green while the portal
+            // held the wrong one.
             int hits = 0;
-            List<String> foreign = new ArrayList<>();
+            int registered = 0;
+            String effective = null;
             for (String lot : lots) {
                 if (lot.isEmpty()) continue;       // print event, not a registration
+                registered++;
                 if (lot.equals(want)) hits++;
-                else foreign.add(lot);
+                effective = lot;                   // export order is chronological
             }
 
-            if (hits > 0) {
+            if (registered > 1) duplicates.add(code);   // registered more than once: look
+            if (effective == null) {
+                notRegistered.add(code);             // printed, but never registered
+            } else if (effective.equals(want)) {
                 matched++;
                 registrations.put(code, hits);
-                if (hits + foreign.size() > 1) duplicates.add(code);  // registered more than once
-            } else if (!foreign.isEmpty()) {
-                wrongLots.put(code, String.join(", ", foreign));
             } else {
-                notRegistered.add(code);             // printed, but never registered
+                wrongLots.put(code, effective);      // what the portal holds NOW
             }
         }
         return new VerificationResult(missing, notRegistered, wrongLots, duplicates,
                                       registrations, matched);
+    }
+
+    // ── effective view ───────────────────────────────────────────────────────
+    // label -> the lot the portal holds now: the last non-empty row, in export
+    // order. labels that were only printed have no lot and are left out. this is
+    // what a pre-flight compares a file against before registering anything.
+    public Map<String, String> lastLots(List<String> exportLines) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> e : parse(exportLines).entrySet()) {
+            String last = null;
+            for (String lot : e.getValue()) {
+                if (!lot.isEmpty()) last = lot;
+            }
+            if (last != null) out.put(e.getKey(), last);
+        }
+        return out;
     }
 
     // ── parsing ──────────────────────────────────────────────────────────────

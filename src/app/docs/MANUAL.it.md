@@ -155,10 +155,13 @@ il suo nel proprio tab delle impostazioni) l'app clicca **Export CSV** sul
 portale, raccoglie il download fresco e confronta l'intero export col run:
 
 - **OK** — registrata, lotto giusto. `OK ×2` = registrata due volte: il
-  portale aggiunge, quindi un doppio run alza solo il conteggio.
+  portale aggiunge, quindi un doppio run alza solo il conteggio. Vince
+  l'ultima: se un'etichetta è stata registrata con più lotti, conta l'ultimo,
+  e se l'ultimo non è quello atteso la riga è **LOTTO ERRATO**.
 - **MANCANTE** — inviata ma assente dall'export.
 - **NON REGISTRATA** — nell'export ma non attesa.
-- **LOTTO ERRATO: ...** — registrata sotto un altro lotto.
+- **LOTTO ERRATO: ...** — l'ultima registrazione ha un altro lotto (quello
+  che il portale tiene adesso).
 - **NON INVIATA** — il robot si è fermato prima di consegnarla: non è mai
   arrivata al portale.
 

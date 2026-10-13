@@ -277,7 +277,7 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Eleven suite
 |---|---|---|
 | ScanGuardTest | inversion vs mismatch; fail-safe geometry | the lot scanned into QR 1; an unreadable pointer read as a movement |
 | ManualRenderTest | the bundled manual loads and renders | — (new: the manual ships inside the JAR) |
-| RegistrationVerifierTest | the export↔run diff | — (the core, tested from day one) |
+| RegistrationVerifierTest | the export↔run diff; the last registration wins | right then wrong lot painted green while the portal held the wrong one |
 | DownloadWatcherTest | fresh-file pickup, charsets | an ANSI export with accents |
 | VerificationTaskTest | click→wait→diff→retry | false reds from a slow site |
 | CoreExtrasTest | guard, report, history, log round-trip | writer and parser drifting apart |
@@ -336,8 +336,13 @@ is included.
   a window remembered on a second monitor is restored there, one remembered
   on an unplugged monitor is re-placed instead of opening off-screen.
 
-A note on a case that is *not* a limit, since it looks like one: a label
-that landed under both the right lot and a foreign one is not silent — the
-right lot marks it matched, and the extra row flags it in the **duplicates**
-list, which is exactly the "give it a second look" bucket the operator
-scans. Covered by `rightAndWrongLot_isFlaggedAsDuplicate`.
+A note on duplicates: the portal is append-only and **the last registration
+of a label wins** — registering it again with another lot is a correction. The
+verifier therefore reads, per label, the **last non-empty lot** in export order
+(empty rows are prints, not registrations): wrong then right is green, with the
+label in the **duplicates** list for a second look; right then wrong is
+**LOTTO ERRATO**, with the lot the portal holds now as "found". The old rule
+asked "did the expected lot ever land on this label", which painted right then
+wrong green while the portal held the wrong lot. `lastLots` exposes the same
+view (label -> last non-empty lot) for whoever has to compare against the
+portal before registering. Covered by `rightThenWrong_lastWins_isWrongLot`.

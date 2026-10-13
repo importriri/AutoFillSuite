@@ -28,7 +28,11 @@ public final class RegistrationVerifierTest {
         fullHistoryExport_ignoresForeignLabels();
         spacesAroundSeparator_areTrimmed();
         duplicateLabel_warnsButStaysGreen();
-        rightAndWrongLot_isFlaggedAsDuplicate();
+        rightThenWrong_lastWins_isWrongLot();
+        registeredThenReprinted_staysOk();
+        aThenBThenA_isOkDuplicate_countsTheExpectedRows();
+        twoWrongLots_reportOnlyTheLast();
+        lastLots_mapsEachLabelToItsLastNonEmptyLot();
         printThenRegister_appendedRow_isGreen();
         redoRun_leftoverEmptyRows_areHarmless();
         wrongThenCorrected_isGreenWithDuplicateWarning();
@@ -129,22 +133,84 @@ public final class RegistrationVerifierTest {
         check("padded rows still match all three", r.getMatched() == 3);
     }
 
-    // the case the docs once called "unflagged": a label carrying BOTH the
-    // right lot and a foreign one. it is NOT silent — the right lot means the
-    // label is matched, and the extra foreign row makes it a duplicate: the
-    // list the operator scans for exactly these "give it a second look" cases.
-    private static void rightAndWrongLot_isFlaggedAsDuplicate() {
+    // the portal keeps the LAST registration. right lot first, a foreign one
+    // after it: the portal now holds the foreign lot. the old rule ("did the
+    // expected lot ever land") painted this green — a false green. now it is
+    // a wrong lot, with what the portal really holds, and still a duplicate.
+    private static void rightThenWrong_lastWins_isWrongLot() {
         VerificationResult r = run(lines(
             "LBL001|" + LOT,
             "LBL002|" + LOT,           // right lot landed
-            "LBL002|WRONG-9999",       // and a foreign one too
+            "LBL002|WRONG-9999",       // then a foreign one: this one wins
             "LBL003|" + LOT));
-        check("a label with the right lot still counts as matched",
-              r.getRegistrationCounts().containsKey("LBL002"));
-        check("the extra foreign lot flags it as a duplicate — never silent",
+        check("right then wrong is a wrong lot: the last registration wins",
+              r.getWrongLots().containsKey("LBL002"));
+        check("the lot found is the one the portal holds now",
+              "WRONG-9999".equals(r.getWrongLots().get("LBL002")));
+        check("right then wrong is never green", !r.isClean());
+        check("it is still listed among the duplicates",
               r.getDuplicates().contains("LBL002"));
-        check("it is not misreported as a wrong-lot row",
-              !r.getWrongLots().containsKey("LBL002"));
+        check("it does not count as matched",
+              !r.getRegistrationCounts().containsKey("LBL002") && r.getMatched() == 2);
+    }
+
+    // a reprint after the registration adds an empty row LAST: a print is not
+    // a registration, so the lot stays the effective one
+    private static void registeredThenReprinted_staysOk() {
+        VerificationResult r = run(lines(
+            "LBL001|" + LOT,
+            "LBL002|" + LOT,
+            "LBL002|",                 // reprinted afterwards
+            "LBL003|" + LOT));
+        check("registered then reprinted stays OK", r.isClean());
+        check("a reprint is not a duplicate", r.getDuplicates().isEmpty());
+    }
+
+    // A, B, A: corrected back. green, a duplicate to look at, and the count is
+    // the rows carrying the expected lot, as it always was
+    private static void aThenBThenA_isOkDuplicate_countsTheExpectedRows() {
+        VerificationResult r = run(lines(
+            "LBL001|" + LOT,
+            "LBL002|" + LOT,
+            "LBL002|OTHER-LOT",
+            "LBL002|" + LOT,
+            "LBL003|" + LOT));
+        check("A, B, A ends OK", r.isClean());
+        check("A, B, A is a duplicate", r.getDuplicates().contains("LBL002"));
+        check("A, B, A counts the two rows with the expected lot",
+              r.getRegistrationCounts().get("LBL002") == 2);
+    }
+
+    // two foreign lots: "found" is what the portal holds, not a list of history
+    private static void twoWrongLots_reportOnlyTheLast() {
+        VerificationResult r = run(lines(
+            "LBL001|" + LOT,
+            "LBL002|WRONG-1",
+            "LBL002|WRONG-2",
+            "LBL003|" + LOT));
+        check("two wrong lots report only the last one",
+              "WRONG-2".equals(r.getWrongLots().get("LBL002")));
+        check("two wrong lots are a duplicate too", r.getDuplicates().contains("LBL002"));
+    }
+
+    // the effective view for the pre-flight: prints ignored, corrections won,
+    // labels from other runs included (the caller filters)
+    private static void lastLots_mapsEachLabelToItsLastNonEmptyLot() {
+        java.util.Map<String, String> m = new RegistrationVerifier().lastLots(lines(
+            "SerialNumber|ProductionLot",
+            "LBL001|",                 // printed only
+            "LBL002|",
+            "LBL002|LOT-A",
+            "LBL002|LOT-B",            // corrected
+            "LBL002|",                 // reprinted
+            "ZZZ999|OLD-LOT",          // someone else's label
+            "LBL003|LOT-C"));
+        check("a printed-only label has no lot", !m.containsKey("LBL001"));
+        check("a corrected label maps to its last lot", "LOT-B".equals(m.get("LBL002")));
+        check("a reprint after the registration changes nothing", "LOT-B".equals(m.get("LBL002")));
+        check("foreign labels are part of the view", "OLD-LOT".equals(m.get("ZZZ999")));
+        check("the header is not a label", !m.containsKey("SerialNumber"));
+        check("the view has exactly three labels", m.size() == 3);
     }
 
     // same label twice with the right batch -> warning, but not a failure
