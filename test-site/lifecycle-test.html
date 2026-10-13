@@ -94,6 +94,13 @@
     }
     #log-table td { padding: 7px 10px; border-bottom: 1px solid #eee; color: #333; }
     #log-table tr:hover td { background: #fafafa; }
+    #eff-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #eff-table th {
+      background: #f0f0f0; text-align: left; padding: 7px 10px;
+      font-weight: 600; color: #555; border-bottom: 2px solid #ddd;
+    }
+    #eff-table td { padding: 7px 10px; border-bottom: 1px solid #eee; color: #333; }
+    #eff-table .multi { color: #e65100; font-weight: 700; }
     #log-table .badge {
       background: #eceaf6; color: #4a4488; font-size: 11px;
       padding: 2px 8px; border-radius: 10px; font-weight: 600;
@@ -274,6 +281,31 @@
               </tr>
             </thead>
             <tbody id="log-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Vista effettiva: cosa vale adesso, per etichetta ── -->
+      <div class="card">
+        <h2>
+          Vista effettiva (vince l'ultima)
+          <span class="counter-badge" id="eff-counter">0</span>
+        </h2>
+        <div class="btn-hint" style="margin-bottom:8px">
+          Per ogni etichetta: l'ultimo lotto non vuoto dello storico (quello che vale)
+          e quante righe ha nello storico. Le righe vuote sono stampe.
+        </div>
+        <div class="log-scroll">
+          <div class="log-empty" id="eff-empty">Nessuna etichetta ancora.</div>
+          <table id="eff-table" class="log-table-eff" style="display:none">
+            <thead>
+              <tr>
+                <th>item Serial Number</th>
+                <th>Lotto effettivo</th>
+                <th>Righe</th>
+              </tr>
+            </thead>
+            <tbody id="eff-body"></tbody>
           </table>
         </div>
       </div>
@@ -465,8 +497,41 @@
       body.insertBefore(tp, body.firstChild);
     }
     el("counter").textContent = rows.length;
+    renderEffective();
     el("log-empty").style.display  = rows.length || pending.length ? "none" : "block";
     el("log-table").style.display  = rows.length || pending.length ? "table" : "none";
+  }
+
+  // ── vista effettiva: il portale tiene l'ULTIMA registrazione ────────────
+  // label -> { lot: ultimo lotto non vuoto ("" se solo stampata), count: righe }
+  function effective() {
+    var out = {}, order = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!out.hasOwnProperty(r.s)) { out[r.s] = { lot: "", count: 0 }; order.push(r.s); }
+      out[r.s].count++;
+      if (r.l !== "") out[r.s].lot = r.l;
+    }
+    return { map: out, order: order };
+  }
+
+  function renderEffective() {
+    var eff = effective();
+    var body = el("eff-body");
+    body.innerHTML = "";
+    var start = Math.max(0, eff.order.length - 40);     // solo le ultime 40 a video
+    for (var i = eff.order.length - 1; i >= start; i--) {
+      var s = eff.order[i], e = eff.map[s];
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td style="font-family:monospace;font-size:11px">' + esc(s) + "</td>" +
+        '<td style="font-family:monospace">' + (e.lot === "" ? "(solo stampa)" : esc(e.lot)) + "</td>" +
+        "<td" + (e.count > 1 ? ' class="multi"' : "") + ">" + e.count + "</td>";
+      body.appendChild(tr);
+    }
+    el("eff-counter").textContent = eff.order.length;
+    el("eff-empty").style.display = eff.order.length ? "none" : "block";
+    el("eff-table").style.display = eff.order.length ? "table" : "none";
   }
 
   // ENTER nel campo batch non salva (come il Vuetify del sito vero)
@@ -501,6 +566,15 @@
   // esposto per il test harness (jsdom) — la pagina non lo usa
   window.__sim = {
     rows: function () { return rows; },
+    // la stessa mappa della card "Vista effettiva": etichetta -> ultimo lotto non vuoto
+    effective: function () {
+      var eff = effective(), out = {};
+      for (var i = 0; i < eff.order.length; i++) {
+        var e = eff.map[eff.order[i]];
+        if (e.lot !== "") out[eff.order[i]] = e.lot;
+      }
+      return out;
+    },
     pending: function () { return pending; },
     csv: function () {
       var out = "DemoSerial|DemoBatch\n";
