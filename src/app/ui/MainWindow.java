@@ -286,8 +286,7 @@ public class MainWindow extends JFrame implements RunContext {
             { SettingsManager.PRINT_COORD_X, SettingsManager.PRINT_COORD_Y },
         };
         for (String[] k : keys) {
-            int x = cfg.getInt(k[0], -1), y = cfg.getInt(k[1], -1);
-            if (x >= 0 && y >= 0) out.add(new Point(x, y));
+            if (cfg.isSet(k[0], k[1])) out.add(new Point(cfg.getInt(k[0], -1), cfg.getInt(k[1], -1)));
         }
         return out;
     }

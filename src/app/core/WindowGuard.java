@@ -29,7 +29,9 @@ public final class WindowGuard {
         Rectangle padded = pad(window);
         for (Map.Entry<String, Point> t : targets.entrySet()) {
             Point p = t.getValue();
-            if (p == null || p.x < 0 || p.y < 0) continue;   // not memorized yet
+            // not memorized yet. Negative values are real places (a monitor
+            // left of or above the main one): only -1,-1 is the placeholder
+            if (p == null || (p.x == -1 && p.y == -1)) continue;
             if (padded.contains(p)) hits.add(t.getKey());
         }
         return hits;
@@ -76,7 +78,7 @@ public final class WindowGuard {
         if (targets == null) return true;
         Rectangle padded = pad(window);
         for (Point p : targets) {
-            if (p == null || p.x < 0 || p.y < 0) continue;
+            if (p == null || (p.x == -1 && p.y == -1)) continue;   // placeholder, not a place
             if (padded.contains(p)) return false;
         }
         return true;

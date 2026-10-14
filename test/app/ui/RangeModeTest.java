@@ -66,6 +66,7 @@ public final class RangeModeTest {
         labelsRegisteredToday_needAConfirmation();
         robotBusyElsewhere_neverStarts();
         lotFix_isWhatTheNextCheckExpects_orIsUndone();
+        portalOnTheLeftMonitor_isUsable();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -305,6 +306,21 @@ public final class RangeModeTest {
         SwingUtilities.invokeAndWait(() -> want.add(r.expectedLots(codes, "LOT-R")));
         check("the next check looks for the new lot on that label only",
               "LOT-NEW".equals(want.get(0).get("LBL402")) && "LOT-R".equals(want.get(0).get("LBL401")));
+    }
+
+    // Casella 1 memorized on a monitor left of the main one: x is negative,
+    // and the range refused to start as if it had never been memorized
+    private static void portalOnTheLeftMonitor_isUsable() throws Exception {
+        SettingsManager cfg = SettingsManager.getInstance();
+        cfg.set(SettingsManager.REG_COORD_X, -800);
+        cfg.set(SettingsManager.REG_COORD_Y, 300);
+        Hands h = new Hands();
+        RangeModePanel p = panel(h);
+        p.confirmer = m -> true;
+        run(p, "LBL771", "LOT-L", 2);
+        check("a coordinate on the left monitor is a coordinate: the range runs", h.enters.size() == 2);
+        cfg.set(SettingsManager.REG_COORD_X, 100);
+        cfg.set(SettingsManager.REG_COORD_Y, 100);
     }
 
     static ResultsPanel results(RangeModePanel p) throws Exception {

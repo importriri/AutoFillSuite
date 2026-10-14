@@ -29,6 +29,17 @@ public class SettingsManager {
         return props.getProperty(key, def);
     }
 
+    /**
+     * A coordinate pair was memorized. Negative values are real places (a
+     * monitor left of or above the main one); only an absent key, or the old
+     * "-1, -1" placeholder, means "never memorized".
+     */
+    public boolean isSet(String keyX, String keyY) {
+        if (props.getProperty(keyX) == null || props.getProperty(keyY) == null) return false;
+        int x = getInt(keyX, -1), y = getInt(keyY, -1);
+        return !(x == -1 && y == -1);
+    }
+
     public int getInt(String key, int def) {
         try { return Integer.parseInt(props.getProperty(key, String.valueOf(def))); }
         catch (NumberFormatException e) { return def; }

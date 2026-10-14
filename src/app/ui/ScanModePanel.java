@@ -449,7 +449,7 @@ public class ScanModePanel extends JPanel {
         // queued, while we are still on the EDT and can move the window if we must
         int cx = cfg.getInt(SettingsManager.SCAN_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.SCAN_COORD_Y, -1);
-        if (cx >= 0 && cy >= 0) {
+        if (cfg.isSet(SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y)) {
             String blocked = ctx.blockingCollision(targets(cx, cy));
             if (blocked != null) { setState(ERROR, blocked); return; }
         }
@@ -659,7 +659,7 @@ public class ScanModePanel extends JPanel {
     private void burst(Pair pair) throws InterruptedException {
         int cx = cfg.getInt(SettingsManager.SCAN_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.SCAN_COORD_Y, -1);
-        if (cx < 0 || cy < 0) {
+        if (!cfg.isSet(SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y)) {
             hold(pair, "Manca la coordinata nelle Impostazioni — coppia rimessa in coda");
             return;
         }
@@ -844,7 +844,10 @@ public class ScanModePanel extends JPanel {
 
         int ex = cfg.getInt(SettingsManager.REG_EXPORT_COORD_X, -1);
         int ey = cfg.getInt(SettingsManager.REG_EXPORT_COORD_Y, -1);
-        if (ex < 0 || ey < 0) { setState(ERROR, "Memorizza «Export CSV» nelle Impostazioni (tab Verifica)"); return; }
+        if (!cfg.isSet(SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y)) {
+            setState(ERROR, "Memorizza «Export CSV» nelle Impostazioni (tab Verifica)");
+            return;
+        }
 
         final Map<String, String> snapshot = new LinkedHashMap<>(session);
         File dir = app.config.AppFiles.downloadDir();

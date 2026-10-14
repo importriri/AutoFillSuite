@@ -293,14 +293,19 @@ public class RangeModePanel extends JPanel {
 
         int cx = cfg.getInt(SettingsManager.REG_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.REG_COORD_Y, -1);
-        if (cx < 0 || cy < 0) { warn("Memorizza «Casella 1» nelle Impostazioni."); return; }
+        if (!cfg.isSet(SettingsManager.REG_COORD_X, SettingsManager.REG_COORD_Y)) {
+            warn("Memorizza «Casella 1» nelle Impostazioni.");
+            return;
+        }
         if (same > 0) status.setString(same + " etichette già registrate oggi con lo stesso lotto: reinvio");
 
         Map<String, Point> targets = new LinkedHashMap<>();
         targets.put("Casella 1", new Point(cx, cy));
         int ecx = cfg.getInt(SettingsManager.REG_EXPORT_COORD_X, -1);
         int ecy = cfg.getInt(SettingsManager.REG_EXPORT_COORD_Y, -1);
-        if (ecx >= 0 && ecy >= 0) targets.put("Export CSV", new Point(ecx, ecy));
+        if (cfg.isSet(SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y)) {
+            targets.put("Export CSV", new Point(ecx, ecy));
+        }
         String blocked = ctx.blockingCollision(targets);
         if (blocked != null) { warn(blocked); return; }
         if (!takeRobot()) return;
@@ -439,7 +444,7 @@ public class RangeModePanel extends JPanel {
         }
         int cx = cfg.getInt(SettingsManager.REG_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.REG_COORD_Y, -1);
-        if (cx < 0 || cy < 0) {
+        if (!cfg.isSet(SettingsManager.REG_COORD_X, SettingsManager.REG_COORD_Y)) {
             warn("Memorizza «Casella 1» nelle Impostazioni.");
             return false;
         }
@@ -538,7 +543,10 @@ public class RangeModePanel extends JPanel {
 
         int ex = cfg.getInt(SettingsManager.REG_EXPORT_COORD_X, -1);
         int ey = cfg.getInt(SettingsManager.REG_EXPORT_COORD_Y, -1);
-        if (ex < 0 || ey < 0) { warn("Memorizza «Export CSV» nelle Impostazioni."); return; }
+        if (!cfg.isSet(SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y)) {
+            warn("Memorizza «Export CSV» nelle Impostazioni.");
+            return;
+        }
 
         Map<String, Point> exportTarget = new LinkedHashMap<>();
         exportTarget.put("Export CSV", new Point(ex, ey));

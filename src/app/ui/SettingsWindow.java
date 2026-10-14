@@ -498,7 +498,7 @@ public class SettingsWindow extends JDialog {
             coords.setForeground(AppTheme.RED);
             int cx = cfg.getInt(keyX, -1);
             int cy = cfg.getInt(keyY, -1);
-            if (cx >= 0 && cy >= 0) {
+            if (cfg.isSet(keyX, keyY)) {
                 coords.setText("X:" + cx + "  Y:" + cy);
                 coords.setForeground(AppTheme.GREEN);
             }

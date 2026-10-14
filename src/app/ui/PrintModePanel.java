@@ -91,7 +91,7 @@ public class PrintModePanel extends JPanel {
     private void start() {
         int cx = cfg.getInt(SettingsManager.PRINT_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.PRINT_COORD_Y, -1);
-        if (cx < 0 || cy < 0) {
+        if (!cfg.isSet(SettingsManager.PRINT_COORD_X, SettingsManager.PRINT_COORD_Y)) {
             status.setString("Memorizza il tasto Stampa nelle Impostazioni.");
             return;
         }

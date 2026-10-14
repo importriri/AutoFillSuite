@@ -27,6 +27,7 @@ public final class CoreExtrasTest {
         guard_windowOverTheField_isCaught();
         guard_windowElsewhere_isClear();
         guard_unsetCoordinate_isIgnored();
+        guard_monitorLeftOfTheMain_isAPlaceLikeAnyOther();
         guard_marginCountsAsCollision();
         guard_safeLocation_avoidsEveryTarget();
         guard_safeLocation_nullWhenNothingFits();
@@ -82,6 +83,15 @@ public final class CoreExtrasTest {
         t.put("Export CSV", new Point(-1, -1));
         check("an unset coordinate is not a collision",
               WindowGuard.collisions(new Rectangle(0, 0, 500, 500), t).isEmpty());
+    }
+
+    // a portal on a monitor left of (or above) the main one has negative
+    // coordinates: they are real places, never "not memorized"
+    private static void guard_monitorLeftOfTheMain_isAPlaceLikeAnyOther() {
+        Map<String, Point> t = new LinkedHashMap<>();
+        t.put("Casella 1", new Point(-1200, 300));
+        check("a window over a field on the left monitor is caught",
+              WindowGuard.collisions(new Rectangle(-1500, 200, 600, 400), t).contains("Casella 1"));
     }
 
     // a click has slop: touching the border is close enough to be a problem

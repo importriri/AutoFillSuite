@@ -487,10 +487,14 @@ public class FileModePanel extends JPanel {
         if (running || verifying || read == null) return;
         int cx = cfg.getInt(SettingsManager.SCAN_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.SCAN_COORD_Y, -1);
-        if (cx < 0 || cy < 0) { error("Memorizza la coordinata della Scansione nelle Impostazioni"); return; }
+        if (!cfg.isSet(SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y)) {
+            error("Memorizza la coordinata della Scansione nelle Impostazioni");
+            return;
+        }
         int ex = cfg.getInt(SettingsManager.REG_EXPORT_COORD_X, -1);
         int ey = cfg.getInt(SettingsManager.REG_EXPORT_COORD_Y, -1);
-        if ((ex < 0 || ey < 0) && exportClick == null) {
+        if (!cfg.isSet(SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y)
+                && exportClick == null) {
             error("Memorizza «Export CSV» nelle Impostazioni (tab Verifica): serve per pre-volo e verifica");
             return;
         }
