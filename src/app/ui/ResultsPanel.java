@@ -580,7 +580,9 @@ public class ResultsPanel extends JPanel {
         List<String> merged = RunReport.mergeDaily(existing, key, section);
         StringBuilder sb = new StringBuilder();
         for (String l : merged) sb.append(l).append(System.lineSeparator());
-        Files.write(out.toPath(), sb.toString().getBytes(StandardCharsets.UTF_8));
+        // whole or not at all: Files.write truncated first, and an exit or a
+        // power cut in the middle left the day's report half empty
+        app.core.AtomicFile.write(out.toPath(), sb.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private void writeReport(VerificationResult r) {

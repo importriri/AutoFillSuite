@@ -318,6 +318,9 @@ one corrupt line in the file must not kill the startup.
   the day's report. Run boundaries flush any pending write under the OLD
   identity, so a run reset inside the coalescing window still lands its last
   row.
+  Every rewrite of the day file is atomic (`AtomicFile`: a forced sibling,
+  then a rename), so a crash mid-write leaves the old report whole, never a
+  file cut in half.
   A verification then replaces the live section with real verdicts;
   `mergeDaily` keys on the section identity and leaves every other run of
   the day intact.
@@ -340,6 +343,7 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | ImportLedgerTest | register round trip, resume point, a line cut in half, export order, own copy | an old file registered after a correction |
 | PreflightTest | already there / to send / conflict, by the portal's last lot | a correction already made by hand on the portal |
 | FileModePanelTest | the "Da file" card with a fake robot and portal: checks, overrides, conflict, blocks of 3 over 7 checked after 3, 6, 7, fail-safe before and after ENTER, resume | — (new mode) |
+| ReportAtomicTest | the day's report replaced whole or not at all, whatever the moment of the crash | Files.write truncating first: a crash left the report half empty |
 | ShutdownTest | a send then an immediate close: the row is in the report | System.exit killing the report writer and the pending timer |
 | ManualRenderTest | the bundled manual loads and renders | — (new: the manual ships inside the JAR) |
 | RegistrationVerifierTest | the export↔run diff; the last registration wins | right then wrong lot painted green while the portal held the wrong one |
