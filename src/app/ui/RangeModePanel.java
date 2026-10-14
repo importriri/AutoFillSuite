@@ -230,6 +230,9 @@ public class RangeModePanel extends JPanel {
                 prefix, Long.parseLong(seq), (int) spCount.getValue());
         } catch (NumberFormatException e) {
             return null;
+        } catch (IllegalArgumentException overflow) {
+            warn(overflow.getMessage());
+            return null;
         }
     }
 
@@ -237,8 +240,12 @@ public class RangeModePanel extends JPanel {
 
     private void start() {
         if (robotRunning) return;
+        try { spCount.commitEdit(); } catch (java.text.ParseException ignored) { }
         final List<String> codes = buildExpected();
-        if (codes == null) { warn("Spara un'etichetta valida prima."); return; }
+        if (codes == null) {
+            if (!statusText().contains("supera 999")) warn("Spara un'etichetta valida prima.");
+            return;
+        }
         final String lot = tfLot.getText().trim();
         if (lot.isEmpty()) { warn("Inserisci il lotto."); return; }
         // the same guard as the scan mode: Etichetta against QR 1, Lotto against QR 2
@@ -316,7 +323,8 @@ public class RangeModePanel extends JPanel {
                     triggerFailSafe("Mouse mosso al ciclo " + n);
                     return false;
                 }
-                final String code = prefix + String.format("%03d", seq0 + i);
+                // the verifier's own list: robot and check can never disagree
+                final String code = codes.get(i);
                 // the scan mode's burst: the mouse is checked between EVERY step,
                 // the first cycle included, and ENTER is the point of no return
                 PairBurst.Outcome o = PairBurst.run(hands, coord, null, code, lot,
@@ -594,6 +602,11 @@ public class RangeModePanel extends JPanel {
 
     private void logAppend(String block) {
         if (!log.append(block)) status.setString("Log non scrivibile: " + log.getFile());
+    }
+
+    /** What the status line says now (the tests read it). */
+    String statusText() {
+        return status.getString();
     }
 
     /** What the banner says now (the tests read it). */

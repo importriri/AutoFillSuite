@@ -42,6 +42,7 @@ public final class RegistrationVerifierTest {
         pairs_eachLabelItsOwnLot_isGreen();
         pairs_wrongLotOnOneLabel_isFlagged();
         bomOnFirstLine_isHandled();
+        rangePastThreeDigits_isRefused();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -340,6 +341,21 @@ public final class RegistrationVerifierTest {
             "A-0001-000539_01-03_2610900004|" + LOT,
             "A-0001-000539_01-03_2610900005|" + LOT), expected, LOT);
         check("real-shape labels with long prefixes line up", r.isClean() && r.getMatched() == 3);
+    }
+
+    // 998 + 5 gave 1000 and 1001: labels with one digit more, that do not
+    // exist. the robot and the verifier build codes in the same place, so the
+    // refusal lives here and neither can go past 999
+    private static void rangePastThreeDigits_isRefused() {
+        List<String> ok = RegistrationVerifier.expectedCodes("LBL", 995, 5);
+        check("995 + 5 ends at 999", ok.size() == 5 && "LBL999".equals(ok.get(4)));
+        String msg = null;
+        try {
+            RegistrationVerifier.expectedCodes("LBL", 998, 5);
+        } catch (IllegalArgumentException e) {
+            msg = e.getMessage();
+        }
+        check("998 + 5 is refused, never LBL1000", msg != null && msg.contains("supera 999"));
     }
 
     // ── harness ────────────────────────────────────────────────────────────────

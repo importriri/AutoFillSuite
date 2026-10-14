@@ -62,6 +62,7 @@ public final class RangeModeTest {
         grabDuringALotFix_stopsBeforeEnter();
         lotInTheLabelField_isAnInversion_swapFixesIt();
         codeOfNoKnownShape_isRefused();
+        rangePast999_neverStarts();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -171,6 +172,14 @@ public final class RangeModeTest {
               && p.bannerText().contains("Formato"));
         cfg.set(SettingsManager.SCAN_QR1_PATTERN, "");
         cfg.set(SettingsManager.SCAN_QR2_PATTERN, "");
+    }
+
+    private static void rangePast999_neverStarts() throws Exception {
+        Hands h = new Hands();
+        RangeModePanel p = panel(h);
+        run(p, "LBL998", "LOT-A", 5);
+        check("a range past 999 never starts the robot", h.enters.isEmpty());
+        check("and says why", p.statusText().contains("supera 999"));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

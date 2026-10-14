@@ -27,7 +27,14 @@ public final class RegistrationVerifier {
     // ── expected side ────────────────────────────────────────────────────────
     // the labels a run generates: prefix + zero-padded sequence, same shape the
     // scan field produces. the lot is the same for the whole run, so it stays out.
+    // three digits move: a range that would need a fourth (998 + 5 = 1000,
+    // 1001) builds labels that do not exist, so it is refused here — the one
+    // place both the robot and the verification take their codes from
     public static List<String> expectedCodes(String prefix, long start, int count) {
+        if (count > 0 && start + count - 1 > 999) {
+            throw new IllegalArgumentException("l'intervallo supera 999: " + start + " + " + count
+                + " darebbe etichette con una cifra in più");
+        }
         List<String> codes = new ArrayList<>(Math.max(count, 0));
         for (int i = 0; i < count; i++) {
             codes.add(prefix + String.format("%03d", start + i));
