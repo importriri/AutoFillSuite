@@ -92,6 +92,7 @@ public final class FileModePanelTest {
         hudTakesOver_noClickWhereTheButtonWas();
         stoppedAfterTheLastRow_canStillBeClosed();
         openWhileAnotherModeWorks_leavesTheTableAlone();
+        stoppedImportOfTheArchivedCopy_reopensAtStart();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -456,6 +457,31 @@ public final class FileModePanelTest {
         check("a file is not opened over another mode's work", r.tableModel().getRowCount() == 1
               && "QR-Q".equals(r.tableModel().codeAt(r.tableModel().dayOffset()))
               && p[0].bannerText().contains("Scansione"));
+    }
+
+    // the stick is lost: the operator imports AutoFillSuite's own copy from
+    // importazioni/. stopped half way, the file was never reopened at start:
+    // the restart looked for <name>_<sha8>.csv built from the name it was
+    // imported under, a copy whose name already ends with the fingerprint
+    private static void stoppedImportOfTheArchivedCopy_reopensAtStart() throws Exception {
+        portal.clear();
+        Hands h = new Hands();
+        FileModePanel first = panel(h, "repArch");
+        File f = sevenRows("chiavetta.csv", 4);
+        String sha = CsvImport.read(Files.readAllBytes(f.toPath())).computedSha;
+        File kept = ImportLedger.archive(new File(home, "repArch"), f, sha);   // an earlier import
+        h.grabPair = 2;
+        h.grabCheck = 3;   // stopped before ENTER of row 2
+        open(first, kept);
+        startAndWait(first);
+        check("the import of the archived copy stopped half way", portal.size() == 1);
+
+        h.grabPair = -1;
+        FileModePanel restarted = panel(h, "repArch");
+        final boolean[] found = { false };
+        SwingUtilities.invokeAndWait(() -> found[0] = restarted.restoreInterrupted());
+        check("at start the stopped file is found again from its archived copy",
+              found[0] && restarted.bannerText().startsWith("FERMATO"));
     }
 
     static JButton lever(FileModePanel p) {

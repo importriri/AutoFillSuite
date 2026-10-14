@@ -900,11 +900,10 @@ public class FileModePanel extends JPanel {
             if (e.getValue().interrupted()) { last = e.getValue(); lastSha = e.getKey(); }
         }
         if (last == null) return false;
-        String base = last.name.toLowerCase().endsWith(".csv")
-            ? last.name.substring(0, last.name.length() - 4) : last.name;
-        File copy = new File(app.config.AppFiles.importsDir(reportDir()),
-                             base + "_" + lastSha.substring(0, Math.min(8, lastSha.length())) + ".csv");
-        if (!copy.exists()) return false;
+        // by the fingerprint of the content, like the archive itself: the
+        // file may have been imported from the archived copy, or renamed
+        File copy = ImportLedger.findArchived(reportDir(), lastSha);
+        if (copy == null) return false;
         open(copy);
         return true;
     }

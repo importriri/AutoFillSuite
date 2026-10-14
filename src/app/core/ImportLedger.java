@@ -333,6 +333,11 @@ public final class ImportLedger {
         return dest;
     }
 
+    /** AutoFillSuite's own copy of the file with this fingerprint, or null. */
+    public static File findArchived(File reportDir, String sha) {
+        return archived(app.config.AppFiles.importsDir(reportDir), sha);
+    }
+
     /** The copy in the archive whose content has this fingerprint, or null. */
     private static File archived(File dir, String sha) {
         File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".csv"));
