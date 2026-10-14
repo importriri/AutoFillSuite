@@ -21,9 +21,9 @@ public final class PairBurst {
         SENT,
         /** the operator took the mouse back before ENTER: nothing registered */
         NOT_SENT,
-        /** registered, and the mouse moved after ENTER: counts, robot stops */
+        /** registered, then the mouse moved (or the robot failed) after ENTER: counts, robot stops */
         SENT_THEN_GRABBED,
-        /** the robot itself failed (no display, no clipboard...): treat as not sent */
+        /** the robot itself failed BEFORE ENTER (no display, no clipboard...): not sent */
         FAILED
     }
 
@@ -68,6 +68,7 @@ public final class PairBurst {
     public static Outcome run(Hands h, Point target, Point returnTo, String label, String lot,
                               Timing t, boolean guarded, AfterEnter after)
             throws InterruptedException {
+        boolean entered = false;
         try {
             h.doubleClick(target.x, target.y);
             h.sleep(t.focus);
@@ -88,6 +89,7 @@ public final class PairBurst {
             // point of no return: after ENTER the pair IS registered, so it can
             // never go back in the queue — a re-send would double-register it
             h.pressEnter();
+            entered = true;
             if (after != null) after.sent();
             h.sleep(t.enter);
 
@@ -97,7 +99,10 @@ public final class PairBurst {
         } catch (InterruptedException ie) {
             throw ie;
         } catch (Exception ex) {
-            return Outcome.FAILED;
+            // past ENTER the pair IS on the portal: a failure now (the return
+            // click, a sleep) must not read as "not sent" — that would send it
+            // twice. It counts, and the robot stops.
+            return entered ? Outcome.SENT_THEN_GRABBED : Outcome.FAILED;
         }
     }
 }

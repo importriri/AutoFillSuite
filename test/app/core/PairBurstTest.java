@@ -21,10 +21,14 @@ public final class PairBurstTest {
         final List<String> steps = new ArrayList<>();
         int grabAt;
         boolean failOnPaste;
+        boolean failOnClick;
         int checks;
 
         @Override public void doubleClick(int x, int y) { steps.add("dbl " + x + "," + y); }
-        @Override public void click(int x, int y)       { steps.add("click " + x + "," + y); }
+        @Override public void click(int x, int y) {
+            if (failOnClick) throw new IllegalStateException("display gone");
+            steps.add("click " + x + "," + y);
+        }
         @Override public void pasteText(String text) {
             if (failOnPaste) throw new IllegalStateException("clipboard");
             steps.add("paste " + text);
@@ -47,6 +51,7 @@ public final class PairBurstTest {
         grabBeforeEnter_isNotSent_atEveryStep();
         grabAfterEnter_isSent_butStops();
         robotFailure_isFailed();
+        robotFailureAfterEnter_stillCountsAsSent();
         noGuard_neverStops();
 
         System.out.println();
@@ -97,6 +102,17 @@ public final class PairBurstTest {
         PairBurst.Outcome o = PairBurst.run(h, TARGET, HOME, "LBL001", "LOT", T, true, null);
         check("a robot that cannot paste is FAILED, never SENT", o == PairBurst.Outcome.FAILED);
         check("a failed burst never pressed ENTER", !h.steps.contains("ENTER"));
+    }
+
+    // the bug found while extracting: an exception after ENTER read as "not
+    // sent", and the scan mode marked a pair NON INVIATA that WAS on the portal
+    private static void robotFailureAfterEnter_stillCountsAsSent() throws Exception {
+        FakeHands h = new FakeHands();
+        h.failOnClick = true;
+        boolean[] noted = { false };
+        PairBurst.Outcome o = PairBurst.run(h, TARGET, HOME, "LBL001", "LOT", T, true, () -> noted[0] = true);
+        check("a failure after ENTER counts the pair and stops the robot",
+              o == PairBurst.Outcome.SENT_THEN_GRABBED && noted[0]);
     }
 
     private static void noGuard_neverStops() throws Exception {
