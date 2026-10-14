@@ -51,6 +51,7 @@ java -cp out app.ui.RangeModeTest
 java -cp out app.ui.RegisteredTodayTest
 java -cp out app.ui.ScanConfirmKeysTest
 java -cp out app.ui.ScanRaceTest
+java -cp out app.ui.ResultsOwnershipTest
 java -cp out app.ui.MidnightReportTest
 java -cp out app.ui.ManualRenderTest
 java -cp out app.ui.SpinnerCommitTest

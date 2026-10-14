@@ -119,6 +119,17 @@ public class ResultsPanel extends JPanel {
         this.onCancel = cancel;
     }
 
+    /**
+     * New rows, new owner: the retry, cancel and correction of the mode that
+     * verified the previous rows must never act on these. The mode that
+     * verifies them sets its own again.
+     */
+    private void newOwner() {
+        onRetry  = () -> {};
+        onCancel = () -> {};
+        lotFixer = null;
+    }
+
     private JPanel buildHead(Runnable onClose) {
         JPanel head = new JPanel(new BorderLayout(6, 0));
         head.setBackground(AppTheme.MANTLE);
@@ -268,6 +279,7 @@ public class ResultsPanel extends JPanel {
     }
 
     public void beginRun(int total, String lot) {
+        newOwner();
         queueEditMode = false;
         refreshQueueActions();
         flushJournal();
@@ -295,6 +307,7 @@ public class ResultsPanel extends JPanel {
     // ── dual scan session ──────────────────────────────────────────────────
 
     public void beginSession() {
+        newOwner();
         queueEditMode = true;
         refreshQueueActions();
         flushJournal();
@@ -319,6 +332,7 @@ public class ResultsPanel extends JPanel {
      * report section says modalita=file with the file name as its lot.
      */
     public void beginFileSession(String fileName) {
+        newOwner();
         queueEditMode = false;
         refreshQueueActions();
         flushJournal();
@@ -490,7 +504,15 @@ public class ResultsPanel extends JPanel {
 
     // ── verification ───────────────────────────────────────────────────────
 
+    /**
+     * A range check by hand. The table may hold a scan or file session, or
+     * another range: those are another run and go to the day archive, never
+     * rebuilt in place (their report section would be written over). The
+     * same range keeps its rows and their send times, and gains the labels it
+     * never reached.
+     */
     public void ensureRows(List<String> codes, String lot) {
+        if (!"intervallo".equals(runMode) || !model.runCodesWithin(codes)) beginRun(codes.size(), lot);
         total = codes.size();
         model.ensureRows(codes, lot);
     }

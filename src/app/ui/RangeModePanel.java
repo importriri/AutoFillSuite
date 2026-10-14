@@ -569,9 +569,9 @@ public class RangeModePanel extends JPanel {
         if (!takeRobot()) return;
         verifying = true;
         refreshButtons();
+        results.ensureRows(codes, lot);   // may open a new run: the actions come after
         results.setActions(() -> startVerification(true), this::cancelVerification);
         results.setLotFixer(this::fixOne);
-        results.ensureRows(codes, lot);
         // each label with the lot its row shows: a correction sent changed it,
         // and checking the run's lot would call it LOTTO ERRATO forever
         final Map<String, String> expected = results.expectedLots(codes, lot);

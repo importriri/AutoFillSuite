@@ -729,6 +729,12 @@ public class FileModePanel extends JPanel {
         verifying = true;
         try {
             SwingUtilities.invokeAndWait(() -> {
+                // RIPROVA and ANNULLA are this file's while its check is on screen
+                results.setActions(this::verifyNow, () -> {
+                    VerificationTask t = verifyTask;
+                    if (t != null) t.cancel();
+                });
+                results.setLotFixer(this::fixLot);
                 results.setSessionTotal(snap.size());
                 results.showVerifying();
                 state(AppTheme.BLUE, AppTheme.ON_ACCENT, "VERIFICA dopo " + sentCount() + " inviate...");

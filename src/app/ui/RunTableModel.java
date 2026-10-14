@@ -184,10 +184,24 @@ public class RunTableModel extends AbstractTableModel {
             }
         }
         if (same) return;
+        // the rows already there keep their lot and send time: a range
+        // stopped half way and checked by hand still knows what it sent
+        Map<String, Row> kept = new java.util.HashMap<>();
+        for (Row r : rows) kept.put(r.code, r);
         currentLot = (lot == null) ? "" : lot;
         rows.clear();
-        for (String c : codes) rows.add(new Row(c, currentLot));
+        for (String c : codes) {
+            Row r = kept.remove(c);
+            rows.add(r != null ? r : new Row(c, currentLot));
+        }
         fireTableDataChanged();
+    }
+
+    /** Every row of the current run is one of these labels. */
+    public boolean runCodesWithin(List<String> codes) {
+        java.util.Set<String> all = new java.util.HashSet<>(codes);
+        for (Row r : rows) if (!all.contains(r.code)) return false;
+        return true;
     }
 
     public void clearOutcome() {
