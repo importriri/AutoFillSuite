@@ -674,7 +674,7 @@ public class RangeModePanel extends JPanel {
 
     /** What the banner says now (the tests read it). */
     String bannerText() {
-        return banner.getText();
+        return AppTheme.bannerText(banner);
     }
 
     private void state(java.awt.Color bg, java.awt.Color fg, String text) {

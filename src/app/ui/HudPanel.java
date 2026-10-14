@@ -46,8 +46,10 @@ public class HudPanel extends JPanel {
         num.setOpaque(false);
         num.add(value, BorderLayout.CENTER);
         num.add(caption, BorderLayout.SOUTH);
-        // width pinned, height measured: a forced 34 clipped the digits on windows
-        num.setPreferredSize(new Dimension(110, num.getPreferredSize().height));
+        // width from the widest count a job can show (a file of 1000+ rows),
+        // height measured: a forced 34 clipped the digits on windows
+        int wide = value.getFontMetrics(value.getFont()).stringWidth("9999 / 9999") + 6;
+        num.setPreferredSize(new Dimension(Math.max(110, wide), num.getPreferredSize().height));
 
 
 

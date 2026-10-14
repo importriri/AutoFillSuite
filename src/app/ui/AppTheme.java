@@ -367,9 +367,51 @@ public final class AppTheme {
         return g;
     }
 
+    /**
+     * A banner text too wide for its column wraps onto a second line instead
+     * of losing its end, where the label and the instruction are; the whole
+     * text is always in the tooltip.
+     */
+    static final class BannerLabel extends JLabel {
+        private String full;   // no initializer: JLabel's constructor already sets it
+
+        BannerLabel() {
+            super("", SwingConstants.CENTER);
+        }
+
+        @Override public void setText(String text) {
+            full = text == null ? "" : text;
+            super.setText(shown(getWidth()));
+            setToolTipText(full.isEmpty() ? null : full);
+        }
+
+        @Override public void setBounds(int x, int y, int w, int h) {
+            boolean resized = w != getWidth();
+            super.setBounds(x, y, w, h);
+            if (resized && full != null) {
+                String s = shown(w);
+                if (!s.equals(super.getText())) super.setText(s);
+            }
+        }
+
+        private String shown(int width) {
+            Insets in = getInsets();
+            int room = width - in.left - in.right;
+            Font f = getFont();
+            if (room <= 0 || f == null || getFontMetrics(f).stringWidth(full) <= room) return full;
+            String esc = full.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+            return "<html><div style='text-align:center;width:" + room + "px'>" + esc + "</div></html>";
+        }
+    }
+
+    /** What a banner says, in full, wrapped or not. */
+    public static String bannerText(JLabel banner) {
+        return banner instanceof BannerLabel ? ((BannerLabel) banner).full : banner.getText();
+    }
+
     /** Full-color state banner: the app's "line light". */
     public static JLabel banner() {
-        JLabel b = new JLabel("", SwingConstants.CENTER);
+        JLabel b = new BannerLabel();
         b.setOpaque(true);
         b.setForeground(ON_ACCENT);
         b.setFont(F_BANNER);

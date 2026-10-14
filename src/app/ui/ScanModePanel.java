@@ -1079,7 +1079,7 @@ public class ScanModePanel extends JPanel {
 
     /** What the banner says now (the tests read it). */
     String bannerText() {
-        return banner.getText();
+        return AppTheme.bannerText(banner);
     }
 
     /** Why closing now would leave something behind, or null. */
@@ -1222,7 +1222,7 @@ public class ScanModePanel extends JPanel {
             default:
                 banner.setBackground(AppTheme.GREEN);
                 banner.setForeground(AppTheme.ON_ACCENT);
-                banner.setText("SPARA PURE");
+                banner.setText(text != null ? text : "SPARA PURE");
         }
     }
 

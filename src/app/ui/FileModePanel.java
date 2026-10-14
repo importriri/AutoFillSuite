@@ -378,7 +378,7 @@ public class FileModePanel extends JPanel {
 
     /** Text of the state banner (for the tests too). */
     String bannerText() {
-        return banner.getText();
+        return AppTheme.bannerText(banner);
     }
 
     private void refresh(String hardReason) {

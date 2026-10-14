@@ -60,6 +60,7 @@ java -cp out app.ui.ManualRenderTest
 java -cp out app.ui.SpinnerCommitTest
 java -cp out app.ui.ScanTabSupportTest
 java -cp out app.ui.TextFitTest
+java -cp out app.ui.BannerFitTest
 java -cp out app.ui.StartupSmokeTest
 java -cp out app.ui.StartupSmokeTest --saved
 TESTS
