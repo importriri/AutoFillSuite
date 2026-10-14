@@ -91,9 +91,7 @@ public class RobotEngine implements PairBurst.Hands {
         Robot robot = required();
         robot.mouseMove(x, y);
         Thread.sleep(30);
-        robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
-        Thread.sleep(50);
-        robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+        pressAndRelease(robot);
     }
 
     @Override
@@ -101,13 +99,23 @@ public class RobotEngine implements PairBurst.Hands {
         Robot robot = required();
         robot.mouseMove(x, y);
         Thread.sleep(30);
-        robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
-        Thread.sleep(50);
-        robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+        pressAndRelease(robot);
         Thread.sleep(60);
+        pressAndRelease(robot);
+    }
+
+    /**
+     * One press of the left button. The release is in a finally: ANNULLA
+     * interrupts the thread, and an interruption between press and release
+     * used to leave the button held down in the operating system.
+     */
+    static void pressAndRelease(Robot robot) throws InterruptedException {
         robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
-        Thread.sleep(50);
-        robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+        try {
+            Thread.sleep(50);
+        } finally {
+            robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+        }
     }
 
     @Override
