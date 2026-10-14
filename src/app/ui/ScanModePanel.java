@@ -588,50 +588,37 @@ public class ScanModePanel extends JPanel {
         burstBusy = true;
         SwingUtilities.invokeLater(() -> setState(BUSY, null));
         try {
-            robot.doubleClick(cx, cy);
-            robot.sleep(tFocus);
-            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
-
-            robot.pasteText(pair.q1); robot.sleep(tKey);
-            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
-
-            robot.pressTab();         robot.sleep(tKey);
-            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
-
-            robot.pasteText(pair.q2); robot.sleep(tKey);
-            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
-
-            robot.pressTab();         robot.sleep(tKey);
-            if (guarded && robot.isMouseMoved(target)) { failSafe(pair); return; }
-
-            // point of no return: after ENTER the pair IS registered, so it can
-            // never go back in the queue — a re-send would double-register it
-            robot.pressEnter();       robot.sleep(tEnter);
-
-            final boolean grabbed = guarded && robot.isMouseMoved(target);
-            if (!grabbed) {
-                Point back = appPoint;   // return focus to the app at once
-                if (back != null) robot.click(back.x + 20, back.y + 10);
+            Point back = appPoint;   // return focus to the app at once
+            PairBurst.Outcome outcome = PairBurst.run(robot, target,
+                back == null ? null : new Point(back.x + 20, back.y + 10),
+                pair.q1, pair.q2, new PairBurst.Timing(tFocus, tKey, tEnter), guarded, null);
+            switch (outcome) {
+                case NOT_SENT:
+                    failSafe(pair);
+                    return;
+                case SENT:
+                case SENT_THEN_GRABBED: {
+                    final boolean grabbed = outcome == PairBurst.Outcome.SENT_THEN_GRABBED;
+                    SwingUtilities.invokeLater(() -> {
+                        countSent(pair);
+                        if (grabbed) haltAfterSend();
+                        else maybeAutoVerify();
+                    });
+                    return;
+                }
+                default:
+                    paused = true;
+                    releasing = false;
+                    SwingUtilities.invokeLater(() -> {
+                        endBlock();
+                        Toolkit.getDefaultToolkit().beep();
+                        results.markNotSent(pair.row, "Coppia non inviata: " + pair.q1);
+                        setState(ERROR, "Coppia NON inviata: " + pair.q1 + " — controlla e rispara");
+                        results.sessionCounters(sent, queue.size());
+                        stats.set(sent, queue.size());
+                        updateFireButton();
+                    });
             }
-            SwingUtilities.invokeLater(() -> {
-                countSent(pair);
-                if (grabbed) haltAfterSend();
-                else maybeAutoVerify();
-            });
-        } catch (InterruptedException ie) {
-            throw ie;
-        } catch (Exception ex) {
-            paused = true;
-            releasing = false;
-            SwingUtilities.invokeLater(() -> {
-                endBlock();
-                Toolkit.getDefaultToolkit().beep();
-                results.markNotSent(pair.row, "Coppia non inviata: " + pair.q1);
-                setState(ERROR, "Coppia NON inviata: " + pair.q1 + " — controlla e rispara");
-                results.sessionCounters(sent, queue.size());
-                stats.set(sent, queue.size());
-                updateFireButton();
-            });
         } finally {
             burstBusy = false;
         }

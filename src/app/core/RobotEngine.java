@@ -8,7 +8,7 @@ import java.awt.event.*;
  * Singleton wrapper around java.awt.Robot.
  * Handles mouse fail-safe, clipboard paste, clicks and field reading.
  */
-public class RobotEngine {
+public class RobotEngine implements PairBurst.Hands {
 
     /** A failed creation is retried, not remembered forever. */
     private static final long RETRY_MS = 500;
@@ -73,6 +73,7 @@ public class RobotEngine {
     }
 
     // Call BEFORE mouseMove: it compares against where the robot left the pointer.
+    @Override
     public boolean isMouseMoved(Point target) {
         return isMouseMoved(target, TOLERANCE);
     }
@@ -85,6 +86,7 @@ public class RobotEngine {
         return movedFrom(info.getLocation(), target, tolerance);
     }
 
+    @Override
     public void click(int x, int y) throws InterruptedException {
         Robot robot = required();
         robot.mouseMove(x, y);
@@ -94,6 +96,7 @@ public class RobotEngine {
         robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
     }
 
+    @Override
     public void doubleClick(int x, int y) throws InterruptedException {
         Robot robot = required();
         robot.mouseMove(x, y);
@@ -107,6 +110,7 @@ public class RobotEngine {
         robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
     }
 
+    @Override
     public void pressTab() throws InterruptedException {
         Robot robot = required();
         robot.keyPress(KeyEvent.VK_TAB);
@@ -114,6 +118,7 @@ public class RobotEngine {
         Thread.sleep(60);
     }
 
+    @Override
     public void pressEnter() throws InterruptedException {
         Robot robot = required();
         robot.keyPress(KeyEvent.VK_ENTER);
@@ -121,11 +126,13 @@ public class RobotEngine {
         Thread.sleep(30);
     }
 
+    @Override
     public void sleep(int ms) throws InterruptedException {
         Thread.sleep(ms);
     }
 
     // Paste text using clipboard + CTRL+V (avoids accidental DOM selection).
+    @Override
     public void pasteText(String text) throws InterruptedException {
         Robot robot = required();
         Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
