@@ -99,6 +99,10 @@ public class PrintModePanel extends JPanel {
         targets.put("Tasto Stampa", new Point(cx, cy));
         String blocked = ctx.blockingCollision(targets);
         if (blocked != null) { status.setString(blocked); return; }
+        String other = ctx.busyElsewhere(this);
+        if (other != null) { status.setString("Robot occupato: " + other); return; }
+        final app.core.RobotGate.Lease lease = app.core.RobotGate.tryAcquire("Stampa");
+        if (lease == null) { status.setString("Robot occupato: " + app.core.RobotGate.owner()); return; }
 
         try { spCount.commitEdit(); } catch (java.text.ParseException ignored) { }
         cfg.set(SettingsManager.PRINT_COUNT, spCount.getValue());
@@ -156,6 +160,7 @@ public class PrintModePanel extends JPanel {
                       "COMPLETATO — " + total + "/" + total);
             }
             @Override protected void onFinally() {
+                lease.release();
                 btnStart.setEnabled(true);
                 btnStop.setEnabled(false);
                 ctx.jobFinished();

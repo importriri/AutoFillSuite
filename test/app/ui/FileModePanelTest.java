@@ -86,6 +86,7 @@ public final class FileModePanelTest {
         conflict_stopsBeforeAnyClick();
         failSafeBeforeEnter_keepsTheRow_resumeFinishes();
         grabAfterEnter_countsTheRow_andStops();
+        robotBusyElsewhere_neverStarts();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -310,6 +311,23 @@ public final class FileModePanelTest {
         check("and in the register as sent, written right after ENTER", s.sent.contains(1));
         check("and the robot stopped there", s.interrupted() && p.sentCount() == 1);
         check("it is never queued again", !lever(p).getText().contains("Riprendi da 1"));
+    }
+
+    private static void robotBusyElsewhere_neverStarts() throws Exception {
+        portal.clear();
+        Hands h = new Hands();
+        FileModePanel p = panel(h, "rep9");
+        open(p, sevenRows("busy.csv", 4));
+        app.core.RobotGate.Lease other = app.core.RobotGate.tryAcquire("Intervallo");
+        try {
+            startAndWait(p);
+        } finally {
+            other.release();
+        }
+        check("a file never starts while another mode holds the robot", portal.isEmpty());
+        startAndWait(p);
+        check("...and runs once the robot is free", portal.size() == 4);
+        check("the robot is given back at the end", app.core.RobotGate.owner() == null);
     }
 
     static JButton lever(FileModePanel p) {

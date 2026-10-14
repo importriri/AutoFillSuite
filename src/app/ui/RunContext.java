@@ -32,4 +32,14 @@ public interface RunContext {
 
     /** Bring the app in front and put the caret in the field for the next scan. */
     void focusHome(javax.swing.JComponent target);
+
+    /**
+     * What another mode is doing that this one must not cut across, or null.
+     * The robot gate keeps two clicks apart; this keeps two JOBS apart: a scan
+     * block releases the robot between its pairs, and a range started in such
+     * a gap would interleave its cycles with the block.
+     */
+    default String busyElsewhere(Object self) {
+        return null;
+    }
 }

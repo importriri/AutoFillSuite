@@ -31,6 +31,7 @@ public class RangeModePanel extends JPanel {
     private VerificationTask verifyTask = null;
     private volatile boolean robotRunning = false;
     private volatile boolean verifying = false;
+    private RobotGate.Lease robotLease;   // held while this mode drives the robot (EDT only)
 
     private JTextField tfScan, tfLot;
     private final JTextField tfPrefix   = new JTextField();   // internal state
@@ -302,6 +303,7 @@ public class RangeModePanel extends JPanel {
         if (ecx >= 0 && ecy >= 0) targets.put("Export CSV", new Point(ecx, ecy));
         String blocked = ctx.blockingCollision(targets);
         if (blocked != null) { warn(blocked); return; }
+        if (!takeRobot()) return;
 
         try { spCount.commitEdit(); } catch (java.text.ParseException ignored) { }
         cfg.set(SettingsManager.REG_COUNT, spCount.getValue());
@@ -397,6 +399,7 @@ public class RangeModePanel extends JPanel {
             }
             @Override protected void onFinally() {
                 robotRunning = false;
+                freeRobotIfIdle();
                 refreshButtons();
                 // the cockpit comes back unless a verification is actually
                 // running. "auto-verify is on" is NOT the same thing: a
@@ -441,6 +444,7 @@ public class RangeModePanel extends JPanel {
         targets.put("Casella 1", new Point(cx, cy));
         String blocked = ctx.blockingCollision(targets);
         if (blocked != null) { warn(blocked); return; }
+        if (!takeRobot()) return;
 
         final int tKey  = (int) (cfg.getDouble(SettingsManager.REG_FIELD_DELAY, 0.3) * 1000);
         final int tPost = cfg.getInt(SettingsManager.REG_POST_ENTER, 500);
@@ -478,10 +482,31 @@ public class RangeModePanel extends JPanel {
             } finally {
                 SwingUtilities.invokeLater(() -> {
                     robotRunning = false;
+                    freeRobotIfIdle();
                     refreshButtons();
                 });
             }
         }, "lot-fix").start();
+    }
+
+    /**
+     * The robot gate, on the interface thread. A run hands it straight to its
+     * own verification (onCompleted starts it before onFinally), so the lease
+     * is kept while either is at work and given back when both are over.
+     */
+    private boolean takeRobot() {
+        if (robotLease != null) return true;
+        String other = ctx.busyElsewhere(this);
+        if (other != null) { warn("Robot occupato: " + other); return false; }
+        robotLease = RobotGate.tryAcquire("Intervallo");
+        if (robotLease == null) { warn("Robot occupato: " + RobotGate.owner()); return false; }
+        return true;
+    }
+
+    private void freeRobotIfIdle() {
+        if (robotRunning || verifying || robotLease == null) return;
+        robotLease.release();
+        robotLease = null;
     }
 
     // one place decides what is clickable: never two robots at once
@@ -539,6 +564,7 @@ public class RangeModePanel extends JPanel {
             lines -> verifier.verify(lines, codes, lot);
 
         final int total = codes.size();
+        if (!takeRobot()) return;
         verifying = true;
         refreshButtons();
         results.setActions(() -> startVerification(true), this::cancelVerification);
@@ -555,6 +581,7 @@ public class RangeModePanel extends JPanel {
             }
             @Override public void onOutcome(VerificationResult r, Path f, int attempts, boolean fresh) {
                 verifying = false;
+                freeRobotIfIdle();
                 refreshButtons();
                 String fn = f.getFileName().toString();
                 results.showOutcome(r, fn, attempts, fresh);
@@ -577,6 +604,7 @@ public class RangeModePanel extends JPanel {
             }
             @Override public void onFailure(String reason) {
                 verifying = false;
+                freeRobotIfIdle();
                 refreshButtons();
                 results.showFailure(reason);
                 status.setString("Verifica fallita");
@@ -587,6 +615,7 @@ public class RangeModePanel extends JPanel {
             }
             @Override public void onCancelled() {
                 verifying = false;
+                freeRobotIfIdle();
                 refreshButtons();
                 results.showCancelled();
                 status.setString("Verifica annullata");

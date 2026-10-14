@@ -173,6 +173,18 @@ public class MainWindow extends JFrame implements RunContext {
         exit.run();
     }
 
+    @Override
+    public String busyElsewhere(Object self) {
+        if (self != scanMode) {
+            String scan = scanMode.busyReason();
+            if (scan != null) return "Scansione — " + scan;
+        }
+        if (self != rangeMode && rangeMode.isBusy()) return "Intervallo al lavoro";
+        if (self != printMode && printMode.isBusy()) return "Stampa in corso";
+        if (self != fileMode && fileMode.isRunning()) return "Da file al lavoro";
+        return null;
+    }
+
     /** null when nothing would be cut short by closing now. */
     String busyReason() {
         String scan = scanMode.busyReason();
@@ -360,12 +372,20 @@ public class MainWindow extends JFrame implements RunContext {
             int x = p.x + Math.min(15, target.getWidth() / 2);
             int y = p.y + target.getHeight() / 2;
             target.requestFocusInWindow();
-            // real OS click off the EDT: toFront alone loses to the foreground lock
+            // real OS click off the EDT: toFront alone loses to the foreground lock.
+            // It is a click like any other: it waits for the robot gate, and
+            // gives up rather than land in the middle of someone else's work
             new Thread(() -> {
+                app.core.RobotGate.Lease lease = null;
                 try {
-                    app.core.RobotEngine.getInstance().click(x, y);
+                    lease = app.core.RobotGate.acquire("ritorno all'app", 2000);
+                    if (lease != null) app.core.RobotEngine.getInstance().click(x, y);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
+                } catch (RuntimeException noRobot) {
+                    // no robot: the caret is already in the field
+                } finally {
+                    if (lease != null) lease.release();
                 }
             }, "focus-home").start();
         });

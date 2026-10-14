@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -48,6 +47,7 @@ import java.util.function.Function;
 public class ScanModePanel extends JPanel {
 
     private static final int QUIET_MS = 200;    // scanner idle for at least this
+    private static final String SCAN = "Scansione";   // the robot gate's name for this mode
     private static final int STUCK_MS = 5000;   // half-scanned fields holding the queue
 
     // banner states
@@ -64,6 +64,7 @@ public class ScanModePanel extends JPanel {
 
     private final SettingsManager cfg   = SettingsManager.getInstance();
     private final RobotEngine     robot = RobotEngine.getInstance();
+    PairBurst.Hands hands = robot;   // the tests pass fake hands
     private final VerificationLog log   = new VerificationLog(
         app.config.AppFiles.verificationLog().toPath());
 
@@ -272,6 +273,9 @@ public class ScanModePanel extends JPanel {
         btnClearFields.addActionListener(e -> clearFields());
         btnSwap.addActionListener(e -> swapFields());
         btnFire.addActionListener(e -> {
+            // another mode's job: the worker would slip its bursts between its cycles
+            String other = paused || batchMode ? ctx.busyElsewhere(this) : null;
+            if (other != null) { setState(ERROR, "Robot occupato: " + other); return; }
             if (paused) {                       // one lever: whatever stopped us, resume
                 paused = false;
                 refreshBanner();
@@ -589,11 +593,25 @@ public class ScanModePanel extends JPanel {
         for (;;) {
             try {
                 // never take before we may run: a held pair made the queue lie
-                if (!mayRun()) { Thread.sleep(50); continue; }
-                Pair pair = queue.pollFirst(50, TimeUnit.MILLISECONDS);
-                if (pair == null) continue;
-                if (!mayRun()) { queue.addFirst(pair); continue; }   // flipped mid-poll
-                burst(pair);
+                if (!mayRun() || queue.isEmpty()) { Thread.sleep(20); continue; }
+                // the robot first, the pair second: from the moment a pair
+                // leaves the queue nobody else may click (a verification owed
+                // by the previous pair waits for the gate, never for a flag).
+                // The gate is taken only with a pair waiting: an idle worker
+                // holding it would keep every verification out
+                RobotGate.Lease lease = RobotGate.tryAcquire(SCAN);
+                if (lease == null) { Thread.sleep(50); continue; }
+                try {
+                    if (!mayRun()) continue;   // a verification was asked for meanwhile
+                    burstBusy = true;
+                    Pair pair = queue.pollFirst();
+                    if (pair == null) continue;
+                    if (!mayRun()) { queue.addFirst(pair); continue; }   // flipped mid-poll
+                    burst(pair);
+                } finally {
+                    burstBusy = false;
+                    lease.release();
+                }
                 if (batchMode && queue.isEmpty()) {
                     releasing = false;
                     SwingUtilities.invokeLater(() -> {
@@ -654,60 +672,55 @@ public class ScanModePanel extends JPanel {
         }
         if (blocked[0] != null) { hold(pair, blocked[0]); return; }
 
-        burstBusy = true;
         SwingUtilities.invokeLater(() -> setState(BUSY, null));
-        try {
-            Point back = appPoint;   // return focus to the app at once
-            final long id = pair.id;
-            PairBurst.Outcome outcome = PairBurst.run(robot, target,
-                back == null ? null : new Point(back.x + 20, back.y + 10),
-                pair.q1, pair.q2, new PairBurst.Timing(tFocus, tKey, tEnter), guarded,
-                () -> {
-                    if (store == null) throw new java.io.IOException("coda non salvabile: " + storeError);
-                    store.sending(id);
-                },
-                () -> {
-                    try {
-                        store.sent(id);
-                    } catch (java.io.IOException ex) {
-                        System.err.println("[queue] INVIATA not recorded: " + ex.getMessage());
-                    }
-                });
-            switch (outcome) {
-                case NOT_SENT:
-                    failSafe(pair);
-                    return;
-                case SENT:
-                case SENT_THEN_GRABBED: {
-                    final boolean grabbed = outcome == PairBurst.Outcome.SENT_THEN_GRABBED;
-                    SwingUtilities.invokeLater(() -> {
-                        countSent(pair);
-                        if (grabbed) haltAfterSend();
-                        else maybeAutoVerify();
-                    });
-                    return;
+        Point back = appPoint;   // return focus to the app at once
+        final long id = pair.id;
+        PairBurst.Outcome outcome = PairBurst.run(hands, target,
+            back == null ? null : new Point(back.x + 20, back.y + 10),
+            pair.q1, pair.q2, new PairBurst.Timing(tFocus, tKey, tEnter), guarded,
+            () -> {
+                if (store == null) throw new java.io.IOException("coda non salvabile: " + storeError);
+                store.sending(id);
+            },
+            () -> {
+                try {
+                    store.sent(id);
+                } catch (java.io.IOException ex) {
+                    System.err.println("[queue] INVIATA not recorded: " + ex.getMessage());
                 }
-                default:
-                    paused = true;
-                    releasing = false;
-                    // the operator is told to scan it again: it must not come back at restart
-                    try {
-                        if (store != null) store.remove(pair.id);
-                    } catch (java.io.IOException ignored) {
-                        // a pair left IN_INVIO comes back "da verificare": still safe
-                    }
-                    SwingUtilities.invokeLater(() -> {
-                        endBlock();
-                        app.core.Sounds.error();
-                        results.markNotSent(pair.row, "Coppia non inviata: " + pair.q1);
-                        setState(ERROR, "Coppia NON inviata: " + pair.q1 + " — controlla e rispara");
-                        results.sessionCounters(sent, queue.size());
-                        stats.set(sent, queue.size());
-                        updateFireButton();
-                    });
+            });
+        switch (outcome) {
+            case NOT_SENT:
+                failSafe(pair);
+                return;
+            case SENT:
+            case SENT_THEN_GRABBED: {
+                final boolean grabbed = outcome == PairBurst.Outcome.SENT_THEN_GRABBED;
+                SwingUtilities.invokeLater(() -> {
+                    countSent(pair);
+                    if (grabbed) haltAfterSend();
+                    else maybeAutoVerify();
+                });
+                return;
             }
-        } finally {
-            burstBusy = false;
+            default:
+                paused = true;
+                releasing = false;
+                // the operator is told to scan it again: it must not come back at restart
+                try {
+                    if (store != null) store.remove(pair.id);
+                } catch (java.io.IOException ignored) {
+                    // a pair left IN_INVIO comes back "da verificare": still safe
+                }
+                SwingUtilities.invokeLater(() -> {
+                    endBlock();
+                    app.core.Sounds.error();
+                    results.markNotSent(pair.row, "Coppia non inviata: " + pair.q1);
+                    setState(ERROR, "Coppia NON inviata: " + pair.q1 + " — controlla e rispara");
+                    results.sessionCounters(sent, queue.size());
+                    stats.set(sent, queue.size());
+                    updateFireButton();
+                });
         }
     }
 
@@ -787,6 +800,7 @@ public class ScanModePanel extends JPanel {
      */
     private void maybeAutoVerify() {
         if (!verifyDue || verifying || burstBusy || paused) return;
+        if (RobotGate.owner() != null) return;   // someone is clicking: the heartbeat retries
         if (!queue.isEmpty() || fieldsBusy) return;
         if (System.currentTimeMillis() - lastInputAt <= QUIET_MS) return;
         verifySession(false);
@@ -797,6 +811,10 @@ public class ScanModePanel extends JPanel {
     private void verifySession(boolean manual) {
         if (verifying) return;
         if (session.isEmpty()) { setState(ERROR, "Sessione vuota: spara almeno una coppia"); return; }
+        String other = RobotGate.owner();
+        if (other == null || SCAN.equals(other)) other = ctx.busyElsewhere(this);
+        else other = "robot al lavoro in " + other;
+        if (other != null) { setState(ERROR, "Verifica rimandata: " + other); return; }
 
         int ex = cfg.getInt(SettingsManager.REG_EXPORT_COORD_X, -1);
         int ey = cfg.getInt(SettingsManager.REG_EXPORT_COORD_Y, -1);
@@ -894,15 +912,20 @@ public class ScanModePanel extends JPanel {
         final boolean manualF = manual;
         // start only after any burst finishes: never two robots on one mouse
         Thread starter = new Thread(() -> {
+            RobotGate.Lease lease;
             try {
-                while (burstBusy) Thread.sleep(30);
+                lease = RobotGate.acquire(SCAN);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             }
-            verifyTask = new VerificationTask(exportClick, watcher, checker,
-                retriesF, retryMsF, manualF, listener);
-            verifyTask.run();
+            try {
+                verifyTask = new VerificationTask(exportClick, watcher, checker,
+                    retriesF, retryMsF, manualF, listener);
+                verifyTask.run();
+            } finally {
+                lease.release();
+            }
         }, "dualscan-verify");
         starter.start();
     }

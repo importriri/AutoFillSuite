@@ -34,6 +34,7 @@ java -cp out app.core.VerificationTaskTest
 java -cp out app.core.CoreExtrasTest
 java -cp out app.core.ScanGuardTest
 java -cp out app.core.PairBurstTest
+java -cp out app.core.RobotGateTest
 java -cp out app.core.ReportAtomicTest
 java -cp out app.core.ScanQueueJournalTest
 java -cp out app.core.SoundsTest
@@ -49,6 +50,7 @@ java -cp out app.ui.ShutdownTest
 java -cp out app.ui.RangeModeTest
 java -cp out app.ui.RegisteredTodayTest
 java -cp out app.ui.ScanConfirmKeysTest
+java -cp out app.ui.ScanRaceTest
 java -cp out app.ui.MidnightReportTest
 java -cp out app.ui.ManualRenderTest
 java -cp out app.ui.SpinnerCommitTest

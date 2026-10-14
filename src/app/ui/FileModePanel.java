@@ -8,6 +8,7 @@ import app.core.PairBurst;
 import app.core.Preflight;
 import app.core.RegistrationVerifier;
 import app.core.RobotEngine;
+import app.core.RobotGate;
 import app.core.VerificationLog;
 import app.core.VerificationResult;
 import app.core.VerificationTask;
@@ -86,6 +87,7 @@ public class FileModePanel extends JPanel {
     private volatile boolean stopRequested;
     private volatile boolean verifying;
     private volatile Point appPoint;
+    private RobotGate.Lease robotLease;   // held while this mode drives the robot (EDT only)
     private VerificationTask verifyTask;
 
     // ── widgets ──────────────────────────────────────────────────────────
@@ -484,6 +486,7 @@ public class FileModePanel extends JPanel {
         }
         String blocked = ctx.blockingCollision(targets(cx, cy));
         if (blocked != null) { error(blocked); return; }
+        if (!takeRobot()) return;
 
         running = true;
         stopRequested = false;
@@ -493,6 +496,20 @@ public class FileModePanel extends JPanel {
         Thread worker = new Thread(this::work, "file-worker");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    /** The robot gate for a run or a verification by hand (interface thread only). */
+    private boolean takeRobot() {
+        String other = ctx.busyElsewhere(this);
+        if (other != null) { error("Robot occupato: " + other); return false; }
+        robotLease = RobotGate.tryAcquire("Da file");
+        if (robotLease == null) { error("Robot occupato: " + RobotGate.owner()); return false; }
+        return true;
+    }
+
+    private void freeRobot() {
+        if (robotLease != null) robotLease.release();
+        robotLease = null;
     }
 
     private void error(String msg) {
@@ -605,6 +622,7 @@ public class FileModePanel extends JPanel {
         }
         SwingUtilities.invokeLater(() -> {
             running = false;
+            freeRobot();
             ctx.jobFinished();
             refresh(null);
             if (why == null) {
@@ -769,6 +787,7 @@ public class FileModePanel extends JPanel {
     /** Verifica, by hand: everything sent from this file so far. */
     private void verifyNow() {
         if (running || verifying || sentCount() == 0) return;
+        if (!takeRobot()) return;
         running = true;
         refresh(null);
         Thread t = new Thread(() -> {
@@ -784,6 +803,7 @@ public class FileModePanel extends JPanel {
             final String w = why;
             SwingUtilities.invokeLater(() -> {
                 running = false;
+                freeRobot();
                 refresh(null);
                 if (w != null) state(AppTheme.RED, AppTheme.ON_ACCENT, w);
             });

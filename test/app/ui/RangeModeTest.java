@@ -64,6 +64,7 @@ public final class RangeModeTest {
         codeOfNoKnownShape_isRefused();
         rangePast999_neverStarts();
         labelsRegisteredToday_needAConfirmation();
+        robotBusyElsewhere_neverStarts();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -239,12 +240,40 @@ public final class RangeModeTest {
         return null;
     }
 
+    // each mode checked its own flags only: a range could start while a scan
+    // verification waited for its export, or between two pairs of a scan block
+    private static void robotBusyElsewhere_neverStarts() throws Exception {
+        Hands h = new Hands();
+        RangeModePanel p = panel(h);
+        app.core.RobotGate.Lease other = app.core.RobotGate.tryAcquire("Da file");
+        try {
+            run(p, "LBL301", "LOT-G", 3);
+        } finally {
+            other.release();
+        }
+        check("a range never starts while another mode holds the robot", h.enters.isEmpty() && rows(p) == 0);
+        run(p, "LBL301", "LOT-G", 3);
+        check("...and starts once the robot is free", h.enters.size() == 3);
+        check("the robot is given back at the end of the run", app.core.RobotGate.owner() == null);
+
+        Hands h2 = new Hands();
+        final RangeModePanel[] q = new RangeModePanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            q[0] = new RangeModePanel(new ResultsPanel(() -> { }), new NoopRunContext() {
+                @Override public String busyElsewhere(Object self) { return "Scansione — 4 coppie in coda"; }
+            });
+            q[0].hands = h2;
+        });
+        run(q[0], "LBL311", "LOT-G", 3);
+        check("a range never starts between the pairs of another mode's job", h2.enters.isEmpty());
+    }
+
     static void check(String name, boolean cond) {
         if (cond) { passed++; System.out.println("  ok   " + name); }
         else      { failed++; System.out.println("  FAIL " + name); }
     }
 
-    static final class NoopRunContext implements RunContext {
+    static class NoopRunContext implements RunContext {
         @Override public String blockingCollision(Map<String, Point> targets) { return null; }
         @Override public void jobStarted(Runnable stopAction) { }
         @Override public void jobProgress(Color tone, String state, String number,
