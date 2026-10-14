@@ -305,7 +305,11 @@ one corrupt line in the file must not kill the startup.
   sections. Journal writes are queued on a **single writer** in submission
   order: two of them at once are two read-modify-writes of the same file, and
   one section is simply lost — the coalesced write of a run and the boundary
-  flush of the next overlap exactly when a session ends. The section **key
+  flush of the next overlap exactly when a session ends. The writer thread is
+  not a daemon, but that does NOT survive `System.exit`: closing the window
+  first calls `ResultsPanel.shutdown()`, which flushes the coalescing timer and
+  waits for the writer (5 s at most) — before that, a send followed by an
+  immediate close lost its row (`ShutdownTest`). The section **key
   travels with the section**, never read from the writer thread, or a run
   boundary crossed in between would file the old rows under the new run's
   identity. Run identities are also strictly increasing (`nextRunStamp`):
@@ -336,6 +340,7 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | ImportLedgerTest | register round trip, resume point, a line cut in half, export order, own copy | an old file registered after a correction |
 | PreflightTest | already there / to send / conflict, by the portal's last lot | a correction already made by hand on the portal |
 | FileModePanelTest | the "Da file" card with a fake robot and portal: checks, overrides, conflict, blocks of 3 over 7 checked after 3, 6, 7, fail-safe before and after ENTER, resume | — (new mode) |
+| ShutdownTest | a send then an immediate close: the row is in the report | System.exit killing the report writer and the pending timer |
 | ManualRenderTest | the bundled manual loads and renders | — (new: the manual ships inside the JAR) |
 | RegistrationVerifierTest | the export↔run diff; the last registration wins | right then wrong lot painted green while the portal held the wrong one |
 | DownloadWatcherTest | fresh-file pickup, charsets | an ANSI export with accents |

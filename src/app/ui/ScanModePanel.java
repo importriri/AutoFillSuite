@@ -815,6 +815,16 @@ public class ScanModePanel extends JPanel {
         starter.start();
     }
 
+    /** Why closing now would cut something short, or null. */
+    String busyReason() {
+        if (burstBusy) return "Il robot sta inviando una coppia.";
+        if (verifying) return "C'è una verifica in corso.";
+        if (!queue.isEmpty()) {
+            return queue.size() + " coppie in coda non ancora inviate: chiudendo vanno perse.";
+        }
+        return null;
+    }
+
     private void cancelVerify() {
         if (verifyTask != null) verifyTask.cancel();
     }

@@ -140,9 +140,7 @@ public class MainWindow extends JFrame implements RunContext {
 
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) {
-                cfg.save();   // settings are write-through
-                dispose();
-                System.exit(0);
+                closeApp(true);
             }
         });
 
@@ -154,6 +152,37 @@ public class MainWindow extends JFrame implements RunContext {
         SwingUtilities.invokeLater(() -> {
             if (fileMode.restoreInterrupted()) subSelector.select(2);
         });
+    }
+
+    /** How the app ends; a test replaces it to stay alive after the close. */
+    static Runnable exit = () -> System.exit(0);
+
+    /**
+     * Closing: ask first when work is in flight, then write the last report
+     * rows, wait for the writer, and only then exit. A plain System.exit used
+     * to kill the report writer mid-write and drop the last send.
+     */
+    void closeApp(boolean ask) {
+        String busy = busyReason();
+        if (ask && busy != null) {
+            int c = JOptionPane.showConfirmDialog(this, busy + "\n\nChiudere comunque?",
+                "Chiudi AutoFillSuite", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (c != JOptionPane.YES_OPTION) return;
+        }
+        cfg.save();   // settings are write-through
+        results.shutdown();
+        dispose();
+        exit.run();
+    }
+
+    /** null when nothing would be cut short by closing now. */
+    String busyReason() {
+        String scan = scanMode.busyReason();
+        if (scan != null) return scan;
+        if (rangeMode.isBusy()) return "Il robot sta lavorando (Intervallo) o c'è una verifica in corso.";
+        if (printMode.isBusy()) return "Il robot sta stampando.";
+        if (fileMode.isRunning()) return "Il robot sta registrando un file: si fermerà e lo ritroverai da riprendere.";
+        return null;
     }
 
     private JPanel buildHeader() {

@@ -632,9 +632,11 @@ public class ResultsPanel extends JPanel {
      * coalesced write of a run and the boundary flush of the next one overlap
      * exactly at the moment a session ends, which is the moment the file matters.
      *
-     * Not a daemon — a write in flight keeps the JVM alive, so the last send of
-     * the day lands even if the operator closes the app right after. The idle
-     * thread times out instead, so it never keeps the app from exiting either.
+     * The thread is not a daemon, but that alone protects nothing: System.exit
+     * ends the JVM with non-daemon threads still running, and the coalescing
+     * timer was never flushed either — closing the app right after a send lost
+     * the last row. The window now calls {@link #shutdown()} before exiting. The
+     * idle thread times out, so it never keeps the app from exiting either.
      */
     private static final java.util.concurrent.ThreadPoolExecutor JOURNAL =
         new java.util.concurrent.ThreadPoolExecutor(1, 1, 5,
@@ -642,6 +644,22 @@ public class ResultsPanel extends JPanel {
             new java.util.concurrent.LinkedBlockingQueue<Runnable>(),
             r -> new Thread(r, "report-journal"));
     static { JOURNAL.allowCoreThreadTimeOut(true); }
+
+    /**
+     * Before the app exits: the pending coalesced write goes out NOW, then the
+     * writer is drained and waited for (5 s at most). true when everything
+     * reached the disk in time.
+     */
+    public boolean shutdown() {
+        flushJournal();
+        JOURNAL.shutdown();
+        try {
+            return JOURNAL.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
 
     private void journal() {
         List<RunReport.Entry> entries = model.reportEntries();

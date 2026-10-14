@@ -61,6 +61,9 @@ public abstract class AutomationTask implements Runnable {
 
     public void stop() { running = false; }
 
+    /** Still counting down or cycling. */
+    public boolean isRunning() { return running; }
+
     protected void showCountdown(int sec) {}
 
     /** UI hook, called on the EDT — status bar / banner, never a popup. */

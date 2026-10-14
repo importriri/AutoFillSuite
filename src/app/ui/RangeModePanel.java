@@ -557,6 +557,11 @@ public class RangeModePanel extends JPanel {
 
     private void warn(String msg) { status.setString(msg); }
 
+    /** The robot or a verification is at work. */
+    boolean isBusy() {
+        return robotRunning || verifying;
+    }
+
     private static String defaultDownloads() {
         return new File(System.getProperty("user.home"), "Downloads").getAbsolutePath();
     }

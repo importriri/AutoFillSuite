@@ -176,4 +176,9 @@ public class PrintModePanel extends JPanel {
         });
         new Thread(currentTask).start();
     }
+
+    /** A print run is counting down or clicking. */
+    boolean isBusy() {
+        return currentTask != null && currentTask.isRunning();
+    }
 }
