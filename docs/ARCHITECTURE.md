@@ -180,9 +180,12 @@ levels, each with a different failure semantics:
 - **Duplicate guard**: the same label already in the session or in the queue
   is a scanner that fired twice, not a second piece.
 - **Scanner TAB suffix**: Swing consumes TAB before a text field can treat it
-  like ENTER, so `ScanTabSupport` intercepts only an unmodified TAB on QR 2
-  inside `ScanModePanel` and posts the field's existing ActionEvent. QR 1,
-  Shift+TAB and every field outside scan mode keep normal focus traversal.
+  like ENTER, so `ScanTabSupport` intercepts only an unmodified TAB on the field
+  marked with the `scan.submitOnTab` client property (QR 2) and posts that
+  field's existing ActionEvent. QR 1, Shift+TAB and every other field keep
+  normal focus traversal. The first version recognised QR 2 as "the second of
+  exactly two fields in ScanModePanel": a third field would have switched the
+  scanner's TAB off in silence. The marker is the rule ScanLedger uses too.
 
 A burst that dies halfway marks its row `NON INVIATA` and pauses the worker:
 no pair may disappear between the queue and the portal in silence.

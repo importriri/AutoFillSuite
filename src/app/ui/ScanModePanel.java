@@ -253,6 +253,8 @@ public class ScanModePanel extends JPanel {
         tfQr1.addActionListener(e -> {
             if (!tfQr1.getText().trim().isEmpty()) tfQr2.requestFocusInWindow();
         });
+        // the scanner's TAB after QR 2 submits like ENTER: this field, by name
+        ScanTabSupport.markSubmitOnTab(tfQr2);
         tfQr2.addActionListener(e -> accept());
         tfQr2.addFocusListener(new FocusAdapter() {
             @Override public void focusLost(FocusEvent e) {

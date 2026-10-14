@@ -63,6 +63,20 @@ public final class ScanTabSupportTest {
         KeyEvent outsideTab = key(outsider, 0, KeyEvent.VK_TAB, '\t');
         check("TAB outside scan mode is untouched",
               !ScanTabSupport.handle(outsideTab, outsider));
+
+        // the reason for the marker: "the second of exactly two fields" went
+        // silent the day the panel gained a third one, and no test noticed
+        JTextField third = new JTextField();
+        panel.add(third);
+        KeyEvent tabWithThird = key(qr2, 0, KeyEvent.VK_TAB, '\t');
+        check("a third field in the scan panel does not switch QR2 TAB off",
+              ScanTabSupport.handle(tabWithThird, qr2) && actions.get() == 2);
+        check("TAB on the third field keeps normal traversal",
+              !ScanTabSupport.handle(key(third, 0, KeyEvent.VK_TAB, '\t'), third) && actions.get() == 2);
+        check("TAB on QR1 is still traversal with three fields",
+              !ScanTabSupport.handle(key(qr1, 0, KeyEvent.VK_TAB, '\t'), qr1));
+        check("the field that submits on TAB is marked, not counted",
+              Boolean.TRUE.equals(qr2.getClientProperty(ScanTabSupport.SUBMIT_ON_TAB)));
     }
 
     private static KeyEvent key(Component source, int modifiers, int code, char ch) {
