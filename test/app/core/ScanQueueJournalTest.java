@@ -22,6 +22,7 @@ public final class ScanQueueJournalTest {
         sendingWithoutSent_comesBackToVerify();
         newSession_keepsTheOldJournal();
         truncation_atEveryByte_isAnExactPrefix();
+        brokenLineInTheMiddle_keepsTheIntactPairs();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -85,6 +86,37 @@ public final class ScanQueueJournalTest {
         s.close();
         check("the new journal holds only the new session",
               ScanQueueStore.open(d, Clock.systemDefaultZone()).pending().size() == 1);
+    }
+
+    // a line broken in the middle (a bad sector, a stray write) set the whole
+    // journal aside and started an empty one: the pairs of the good lines
+    // before it were never offered back, they lived only in the renamed file
+    private static void brokenLineInTheMiddle_keepsTheIntactPairs() throws Exception {
+        File d = dir();
+        ScanQueueStore s = ScanQueueStore.open(d, Clock.systemDefaultZone());
+        s.enqueue("QR-1", "LOT-1", "blocco");
+        long b = s.enqueue("QR-2", "LOT-2", "blocco").id;
+        s.sending(b);
+        s.enqueue("QR-3", "LOT-3", "blocco");
+        s.enqueue("QR-4", "LOT-4", "blocco");
+        s.close();
+        File f = new File(d, ScanQueueStore.FILE_NAME);
+        List<String> lines = new java.util.ArrayList<>(java.nio.file.Files.readAllLines(f.toPath()));
+        // the third pair's line is damaged; one more good line follows it
+        lines.set(3, lines.get(3).replace("QR-3", "QR-#"));
+        java.nio.file.Files.write(f.toPath(), (String.join("\n", lines) + "\n").getBytes("UTF-8"));
+        ScanQueueStore back = ScanQueueStore.open(d, Clock.systemDefaultZone());
+        check("the pairs of the good lines before the damage come back",
+              back.pending().size() == 1 && "QR-1".equals(back.pending().get(0).q1));
+        check("a pair cut at ENTER before the damage comes back to verify",
+              back.unsure().size() == 1 && back.unsure().get(0).id == b);
+        back.close();
+        ScanQueueStore third = ScanQueueStore.open(d, Clock.systemDefaultZone());
+        check("they are in the fresh journal: a second start still has them",
+              third.pending().size() == 1 && third.unsure().size() == 1);
+        check("the damaged journal is kept beside it",
+              Arrays.stream(d.list()).anyMatch(n -> n.contains("danneggiato")));
+        third.close();
     }
 
     private static void truncation_atEveryByte_isAnExactPrefix() throws Exception {

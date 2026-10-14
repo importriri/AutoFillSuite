@@ -974,7 +974,10 @@ public class ScanModePanel extends JPanel {
         if (n == 0 && u == 0) return;
         recoverText.setText("Coda ritrovata: " + n + " coppie non inviate"
                             + (u > 0 ? " · " + u + " da verificare" : ""));
-        recoverText.setToolTipText("La coda dell'ultima sessione era ancora salvata su disco");
+        recoverText.setToolTipText(store != null && store.salvaged()
+            ? "Il giornale della coda era danneggiato: queste coppie vengono dalle righe intatte"
+              + " (il file danneggiato resta salvato accanto)"
+            : "La coda dell'ultima sessione era ancora salvata su disco");
         recoverBox.setVisible(true);
     }
 

@@ -52,6 +52,7 @@ public final class ScanQueueStore {
     private QueueJournal.Replay replay;
     private final Map<Long, Item> items = new LinkedHashMap<>();
     private long nextId = 1;
+    private boolean salvaged;
 
     private ScanQueueStore(File file, Clock clock) {
         this.file = file;
@@ -71,12 +72,35 @@ public final class ScanQueueStore {
         replay = QueueJournal.recover(file, clock);
         if (replay.corrupted) {
             // never append after a broken line: the damaged file is kept (and
-            // its .corrotto- copy), a fresh journal starts beside it
+            // its .corrotto- copy), a fresh journal starts beside it. What the
+            // good lines before the damage say is carried over: those pairs
+            // were queued, and must be offered back like any other
+            QueueJournal.Replay damaged = replay;
             rotate("danneggiato");
             replay = QueueJournal.recover(file, clock);
+            journal = QueueJournal.openForAppend(file, replay, clock);
+            for (QueueEvent e : damaged.events) apply(e);
+            for (Item it : new java.util.ArrayList<>(items.values())) {
+                if (it.state != State.QUEUED && it.state != State.SENDING) {
+                    items.remove(it.id);
+                    continue;
+                }
+                journal.append(QueueEvent.Type.ACCODA,
+                    QueueJournal.fields(String.valueOf(it.id), it.q1, it.q2, it.mode));
+                if (it.state == State.SENDING) {
+                    journal.append(QueueEvent.Type.IN_INVIO, QueueJournal.fields(String.valueOf(it.id)));
+                }
+            }
+            salvaged = true;
+            return;
         }
         for (QueueEvent e : replay.events) apply(e);
         journal = QueueJournal.openForAppend(file, replay, clock);
+    }
+
+    /** The journal was damaged at this start; its intact pairs were carried over. */
+    public boolean salvaged() {
+        return salvaged;
     }
 
     public File file() {
