@@ -29,6 +29,7 @@ public final class RunTableModelTest {
         dayView_reportNeverReadsHistory();
         dayView_rollsOverAtMidnight();
         alreadyPresent_isGreenOnlyWhenAVerificationCoversIt();
+        wrongLot_showsTheTail_andTheWholeLotOnHover();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -53,6 +54,24 @@ public final class RunTableModelTest {
               m.stateAt(a) == RunTableModel.OK);
         check("a GIÀ PRESENTE row the verification did not cover is never green",
               m.stateAt(b) == RunTableModel.PENDING && "GIÀ PRESENTE".equals(m.getValueAt(b, 3)));
+    }
+
+    // shorten() kept the HEAD of a long lot ("LOTTO ERRATO: CA HVCO 50 T 0...")
+    // and lost the end — the opposite of fitTail: the digits that tell lots
+    // apart are at the end. the tail stays, the whole lot is in the tooltip
+    private static void wrongLot_showsTheTail_andTheWholeLotOnHover() {
+        String free = "CA HVCO 50 T 048 3-2; M-CA HVCO 50 T 048 3-2  Rev.04; Serial No.: 000066076 ; 2023/12/11;A";
+        RunTableModel m = new RunTableModel();
+        m.beginRun("");
+        int r = m.addRow("LBL001", "LOT-X");
+        Map<String, String> wrong = new java.util.HashMap<>();
+        wrong.put("LBL001", free);
+        m.applyResult(result(Arrays.<String>asList(), Arrays.<String>asList(), wrong,
+                             new java.util.HashMap<String, Integer>(), 0));
+        String shown = String.valueOf(m.getValueAt(r, 3));
+        check("a long wrong lot keeps its TAIL in the cell",
+              shown.startsWith("LOTTO ERRATO: ...") && shown.endsWith("2023/12/11;A"));
+        check("the whole lot is in the cell's tooltip", m.tipAt(r).contains(free));
     }
 
     private static VerificationResult result(List<String> missing, List<String> notReg,

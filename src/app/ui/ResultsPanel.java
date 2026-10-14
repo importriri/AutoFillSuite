@@ -767,6 +767,10 @@ public class ResultsPanel extends JPanel {
                     jc.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
                 }
             }
+            if (c instanceof JComponent) {
+                int runRow = t.convertRowIndexToModel(row);
+                ((JComponent) c).setToolTipText(col == 3 ? model.tipAt(runRow) : null);
+            }
             if (col == 3) {
                 c.setFont(AppTheme.F_BOLD);
                 c.setForeground(pending ? AppTheme.OVERLAY

@@ -26,6 +26,7 @@ public class RunTableModel extends AbstractTableModel {
         String lot;
         String sentAt;                 // null = never sent
         String outcome = "—";
+        String tip;                    // the whole value when the cell shows a cut
         int state = PENDING;
         Row(String code, String lot) { this.code = code; this.lot = lot; }
     }
@@ -183,7 +184,7 @@ public class RunTableModel extends AbstractTableModel {
     }
 
     public void clearOutcome() {
-        for (Row r : rows) { r.outcome = "—"; r.state = PENDING; }
+        for (Row r : rows) { r.outcome = "—"; r.state = PENDING; r.tip = null; }
         fireTableDataChanged();
     }
 
@@ -198,7 +199,11 @@ public class RunTableModel extends AbstractTableModel {
         for (Row r : rows) {
             if (missing.contains(r.code))       { r.state = MISSING; r.outcome = "MANCANTE"; }
             else if (notReg.contains(r.code))   { r.state = NOT_REG; r.outcome = "NON REGISTRATA"; }
-            else if (wrong.containsKey(r.code)) { r.state = WRONG;   r.outcome = "LOTTO ERRATO: " + shorten(wrong.get(r.code)); }
+            else if (wrong.containsKey(r.code)) {
+                r.state = WRONG;
+                r.outcome = "LOTTO ERRATO: " + shorten(wrong.get(r.code));
+                r.tip = "Trovato: " + wrong.get(r.code);
+            }
             else if (counts.containsKey(r.code)) {
                 int n = counts.get(r.code);
                 r.state = OK;
@@ -209,8 +214,14 @@ public class RunTableModel extends AbstractTableModel {
         fireTableDataChanged();
     }
 
-    private static String shorten(String s) {
-        return s.length() > 18 ? s.substring(0, 17) + "..." : s;
+    /** The TAIL survives, like fitTail: the end of a lot is what tells lots apart. */
+    static String shorten(String s) {
+        return s.length() > 18 ? "..." + s.substring(s.length() - 17) : s;
+    }
+
+    /** The whole value behind a cut cell, or null. */
+    public String tipAt(int row) {
+        return at(row).tip;
     }
 
     public int stateAt(int row)   { return at(row).state; }
