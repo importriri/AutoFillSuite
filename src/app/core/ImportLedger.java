@@ -38,7 +38,7 @@ import java.util.Set;
  */
 public final class ImportLedger {
 
-    public static final String FILE_NAME = "AutoFillSuite_importazioni.txt";
+    public static final String FILE_NAME = app.config.AppFiles.IMPORT_LEDGER;
 
     public static final String INIZIO = "INIZIO";
     public static final String INVIATA = "INVIATA";
@@ -300,7 +300,7 @@ public final class ImportLedger {
      * the stick can be lost after the import, the file is not.
      */
     public static File archive(File reportDir, File csv, String sha) throws IOException {
-        File dir = new File(reportDir, "importazioni");
+        File dir = app.config.AppFiles.importsDir(reportDir);
         Files.createDirectories(dir.toPath());
         String base = csv.getName().toLowerCase().endsWith(".csv")
             ? csv.getName().substring(0, csv.getName().length() - 4) : csv.getName();

@@ -21,7 +21,7 @@ public class RangeModePanel extends JPanel {
 
     private final SettingsManager cfg = SettingsManager.getInstance();
     private final VerificationLog log = new VerificationLog(
-        new File(System.getProperty("user.home"), "AutoFillSuite_verifiche.txt").toPath());
+        app.config.AppFiles.verificationLog().toPath());
 
     /** The robot's hands; a test puts fake ones here. */
     app.core.PairBurst.Hands hands = RobotEngine.getInstance();
@@ -516,7 +516,7 @@ public class RangeModePanel extends JPanel {
         String blockedExport = ctx.blockingCollision(exportTarget);
         if (blockedExport != null) { warn(blockedExport); return; }
 
-        File dir = new File(cfg.get(SettingsManager.REG_DOWNLOAD_DIR, defaultDownloads()));
+        File dir = app.config.AppFiles.downloadDir();
         int timeoutMs = manual ? 8000 : cfg.getInt(SettingsManager.REG_EXPORT_TIMEOUT_S, 30) * 1000;
         int retries   = manual ? 0 : cfg.getInt(SettingsManager.REG_VERIFY_RETRIES, 2);
         int retryMs   = cfg.getInt(SettingsManager.REG_VERIFY_RETRY_S, 2) * 1000;
@@ -689,7 +689,4 @@ public class RangeModePanel extends JPanel {
         return robotRunning || verifying;
     }
 
-    private static String defaultDownloads() {
-        return new File(System.getProperty("user.home"), "Downloads").getAbsolutePath();
-    }
 }

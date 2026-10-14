@@ -156,7 +156,7 @@ public class SettingsWindow extends JDialog {
 
         p.section("Cartelle e file");
         JTextField dir = AppTheme.field();
-        dir.setText(cfg.get(SettingsManager.REG_DOWNLOAD_DIR, defaultDownloads()));
+        dir.setText(app.config.AppFiles.downloadDir().getPath());
         saveOnBlur(dir, SettingsManager.REG_DOWNLOAD_DIR);
         p.fieldRow("Cartella download", dir, "dove Chrome salva i file demo-export (N).csv");
 
@@ -167,7 +167,7 @@ public class SettingsWindow extends JDialog {
                    "inizio del nome dei file scaricati dal portale (vuoto = tutti)");
 
         JTextField repDir = AppTheme.field();
-        repDir.setText(cfg.get(SettingsManager.REPORT_DIR, System.getProperty("user.home")));
+        repDir.setText(app.config.AppFiles.reportDir().getPath());
         saveOnBlur(repDir, SettingsManager.REPORT_DIR);
         p.fieldRow("Cartella report", repDir, "dove finisce il CSV del run (SALVA REPORT)");
 
@@ -181,8 +181,7 @@ public class SettingsWindow extends JDialog {
         p.spinRow("Ritentativi", intSp(SettingsManager.REG_VERIFY_RETRIES, 2, 0, 10), "",
                   "riesporta se mancano righe: assorbe i ritardi del server");
         p.spinRow("Attesa tra ritentativi", intSp(SettingsManager.REG_VERIFY_RETRY_S, 2, 1, 60), "s", "");
-        p.hint("Log delle verifiche: " + new File(System.getProperty("user.home"),
-               "AutoFillSuite_verifiche.txt").getAbsolutePath());
+        p.hint("Log delle verifiche: " + app.config.AppFiles.verificationLog().getAbsolutePath());
         return p.panel;
     }
 
@@ -333,7 +332,7 @@ public class SettingsWindow extends JDialog {
         Page p = new Page();
         p.section("Verifiche eseguite");
 
-        File logFile = new File(System.getProperty("user.home"), "AutoFillSuite_verifiche.txt");
+        File logFile = app.config.AppFiles.verificationLog();
         List<String> lines = new ArrayList<>();
         try {
             if (logFile.isFile()) {
@@ -542,7 +541,4 @@ public class SettingsWindow extends JDialog {
         return sc;
     }
 
-    private static String defaultDownloads() {
-        return new File(System.getProperty("user.home"), "Downloads").getAbsolutePath();
-    }
 }

@@ -343,8 +343,7 @@ public class ResultsPanel extends JPanel {
      */
     public Map<String, String[]> registeredToday() {
         Map<String, String[]> out = new java.util.LinkedHashMap<>();
-        File rep = new File(new File(cfg.get(SettingsManager.REPORT_DIR, System.getProperty("user.home"))),
-                            "AutoFillSuite_report_" + today() + ".csv");
+        File rep = app.config.AppFiles.dailyReport(today());
         if (rep.exists()) {
             try {
                 out.putAll(RunReport.sentToday(Files.readAllLines(rep.toPath(), StandardCharsets.UTF_8)));
@@ -578,9 +577,7 @@ public class ResultsPanel extends JPanel {
     }
 
     private File reportFile() {
-        File dir = new File(cfg.get(SettingsManager.REPORT_DIR,
-                                    System.getProperty("user.home")));
-        return new File(dir, "AutoFillSuite_report_" + today() + ".csv");
+        return app.config.AppFiles.dailyReport(today());
     }
 
     /**

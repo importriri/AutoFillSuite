@@ -307,6 +307,15 @@ app, so an arrow or a gear character would be a box on the operator's screen.
 initial value: `SpinnerNumberModel` throws on an out-of-range value, and
 one corrupt line in the file must not kill the startup.
 
+## Where files live
+
+`AppFiles` (in `config`) is the one place that names the app's files and
+folders: the verification log, the default download folder, the report folder
+and the daily report, the import register, the queue journal and the folder of
+imported copies. The same names used to be spelled in a dozen places across six
+classes — one default changed in one place only, and two modes would have
+written to two different files without anybody noticing.
+
 ## Report and log
 
 - **Verification log** (`AutoFillSuite_verifiche.txt`): one entry per

@@ -65,7 +65,7 @@ public class ScanModePanel extends JPanel {
     private final SettingsManager cfg   = SettingsManager.getInstance();
     private final RobotEngine     robot = RobotEngine.getInstance();
     private final VerificationLog log   = new VerificationLog(
-        new File(System.getProperty("user.home"), "AutoFillSuite_verifiche.txt").toPath());
+        app.config.AppFiles.verificationLog().toPath());
 
     private final LinkedBlockingDeque<Pair> queue = new LinkedBlockingDeque<>();
     /** The queue on disk: every change is forced there first. null = cannot write. */
@@ -806,7 +806,7 @@ public class ScanModePanel extends JPanel {
         if (ex < 0 || ey < 0) { setState(ERROR, "Memorizza «Export CSV» nelle Impostazioni (tab Verifica)"); return; }
 
         final Map<String, String> snapshot = new LinkedHashMap<>(session);
-        File dir = new File(cfg.get(SettingsManager.REG_DOWNLOAD_DIR, defaultDownloads()));
+        File dir = app.config.AppFiles.downloadDir();
         int timeoutMs = manual ? 8000 : cfg.getInt(SettingsManager.REG_EXPORT_TIMEOUT_S, 30) * 1000;
         int retries   = manual ? 0 : cfg.getInt(SettingsManager.REG_VERIFY_RETRIES, 2);
         int retryMs   = cfg.getInt(SettingsManager.REG_VERIFY_RETRY_S, 2) * 1000;
@@ -913,7 +913,7 @@ public class ScanModePanel extends JPanel {
     // ── the queue on disk ──────────────────────────────────────────────────
 
     private void openStore() {
-        File dir = new File(cfg.get(SettingsManager.REPORT_DIR, System.getProperty("user.home")));
+        File dir = app.config.AppFiles.reportDir();
         try {
             store = ScanQueueStore.open(dir, java.time.Clock.systemDefaultZone());
             foundPending = new java.util.ArrayList<>(store.pending());
@@ -1177,7 +1177,4 @@ public class ScanModePanel extends JPanel {
         else                              setState(READY, null);
     }
 
-    private static String defaultDownloads() {
-        return new File(System.getProperty("user.home"), "Downloads").getAbsolutePath();
-    }
 }

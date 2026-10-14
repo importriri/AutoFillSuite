@@ -26,7 +26,7 @@ import java.util.Map;
  */
 public final class ScanQueueStore {
 
-    public static final String FILE_NAME = "AutoFillSuite_coda.giornale";
+    public static final String FILE_NAME = app.config.AppFiles.QUEUE_JOURNAL;
 
     public enum State { QUEUED, REMOVED, SENDING, SENT }
 

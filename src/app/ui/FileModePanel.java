@@ -47,7 +47,7 @@ public class FileModePanel extends JPanel {
     private final ResultsPanel results;
     private final RunContext ctx;
     private final VerificationLog log = new VerificationLog(
-        new File(System.getProperty("user.home"), "AutoFillSuite_verifiche.txt").toPath());
+        app.config.AppFiles.verificationLog().toPath());
 
     /** The robot's hands; a test puts fake ones here. */
     PairBurst.Hands hands = RobotEngine.getInstance();
@@ -180,7 +180,7 @@ public class FileModePanel extends JPanel {
     }
 
     File reportDir() {
-        return new File(cfg.get(SettingsManager.REPORT_DIR, System.getProperty("user.home")));
+        return app.config.AppFiles.reportDir();
     }
 
     ImportLedger ledger() {
@@ -626,8 +626,7 @@ public class FileModePanel extends JPanel {
     // ── portal: pre-flight and verification ──────────────────────────────
 
     private DownloadWatcher watcher(int timeoutMs) {
-        File dir = new File(cfg.get(SettingsManager.REG_DOWNLOAD_DIR,
-            new File(System.getProperty("user.home"), "Downloads").getAbsolutePath()));
+        File dir = app.config.AppFiles.downloadDir();
         return new DownloadWatcher(dir.toPath(), cfg.get(SettingsManager.REG_EXPORT_PREFIX, "demo-export"),
             timeoutMs, cfg.getInt(SettingsManager.REG_EXPORT_POLL_MS, 500),
             cfg.getInt(SettingsManager.REG_EXPORT_STABLE_MS, 800));
@@ -825,7 +824,7 @@ public class FileModePanel extends JPanel {
         if (last == null) return false;
         String base = last.name.toLowerCase().endsWith(".csv")
             ? last.name.substring(0, last.name.length() - 4) : last.name;
-        File copy = new File(new File(reportDir(), "importazioni"),
+        File copy = new File(app.config.AppFiles.importsDir(reportDir()),
                              base + "_" + lastSha.substring(0, Math.min(8, lastSha.length())) + ".csv");
         if (!copy.exists()) return false;
         open(copy);
