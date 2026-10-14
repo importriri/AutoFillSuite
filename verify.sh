@@ -45,6 +45,7 @@ java -cp out app.ui.IconRenderTest
 java -cp out app.ui.RunTableModelTest
 java -cp out app.ui.FileModePanelTest
 java -cp out app.ui.ShutdownTest
+java -cp out app.ui.RangeModeTest
 java -cp out app.ui.ManualRenderTest
 java -cp out app.ui.SpinnerCommitTest
 java -cp out app.ui.ScanTabSupportTest

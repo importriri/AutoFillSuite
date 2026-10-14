@@ -23,6 +23,8 @@ public class RangeModePanel extends JPanel {
     private final VerificationLog log = new VerificationLog(
         new File(System.getProperty("user.home"), "AutoFillSuite_verifiche.txt").toPath());
 
+    /** The robot's hands; a test puts fake ones here. */
+    app.core.PairBurst.Hands hands = RobotEngine.getInstance();
     private AutomationTask currentTask = null;
     private VerificationTask verifyTask = null;
     private volatile boolean robotRunning = false;
@@ -255,18 +257,25 @@ public class RangeModePanel extends JPanel {
             }
             @Override protected boolean executeCycle(int i) throws Exception {
                 final int n = i + 1;
-                if (i > 0 && isMouseMoved(coord)) {
+                // between cycles the pointer is where the robot left it: a move
+                // since the last ENTER is the operator taking the mouse back
+                if (i > 0 && hands.isMouseMoved(coord)) {
                     triggerFailSafe("Mouse mosso al ciclo " + n);
                     return false;
                 }
                 final String code = prefix + String.format("%03d", seq0 + i);
-                robot.doubleClick(coord.x, coord.y);
-                robot.sleep(tKey);
-                robot.pasteText(code); robot.sleep(tKey);
-                robot.pressTab();      robot.sleep(tKey);
-                robot.pasteText(lot);  robot.sleep(tKey);
-                robot.pressTab();      robot.sleep(tKey);
-                robot.pressEnter();    robot.sleep(tPost);
+                // the scan mode's burst: the mouse is checked between EVERY step,
+                // the first cycle included, and ENTER is the point of no return
+                PairBurst.Outcome o = PairBurst.run(hands, coord, null, code, lot,
+                    new PairBurst.Timing(tKey, tKey, tPost), true, null);
+                if (o == PairBurst.Outcome.NOT_SENT) {
+                    triggerFailSafe("Mouse mosso al ciclo " + n + ": " + code + " NON registrata");
+                    return false;
+                }
+                if (o == PairBurst.Outcome.FAILED) {
+                    throw new IllegalStateException("robot non disponibile al ciclo " + n + ": "
+                                                    + code + " non registrata");
+                }
                 SwingUtilities.invokeLater(() -> {
                     results.addLiveRow(code, n);
                     counter.set(n, total);
@@ -275,7 +284,12 @@ public class RangeModePanel extends JPanel {
                     ctx.jobProgress(AppTheme.PEACH, "ROBOT AL LAVORO",
                                     n + " / " + total, "registrate", n * 100 / total, true);
                 });
-                if (i < total - 1 && running) robot.sleep(rhythmMs);
+                if (o == PairBurst.Outcome.SENT_THEN_GRABBED) {
+                    triggerFailSafe("Mouse mosso dopo INVIO al ciclo " + n + ": " + code
+                                    + " registrata, robot fermo");
+                    return false;
+                }
+                if (i < total - 1 && running) hands.sleep(rhythmMs);
                 return true;
             }
             @Override protected void updateProgress(int cur, int tot) {
@@ -324,7 +338,7 @@ public class RangeModePanel extends JPanel {
     }
 
     /** One correction burst at Casella 1: code, TAB, new lot, TAB, ENTER. */
-    private void fixOne(int row, String code, String newLot) {
+    void fixOne(int row, String code, String newLot) {
         if (robotRunning || verifying) {
             warn("Robot occupato — riprova a fine run");
             return;
