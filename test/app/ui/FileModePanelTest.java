@@ -90,6 +90,7 @@ public final class FileModePanelTest {
         robotBusyElsewhere_neverStarts();
         correctionByDoubleClick_keepsTheFileLot();
         hudTakesOver_noClickWhereTheButtonWas();
+        stoppedAfterTheLastRow_canStillBeClosed();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -401,9 +402,45 @@ public final class FileModePanelTest {
         SwingUtilities.invokeAndWait(() -> frame[0].dispose());
     }
 
+    // COMPLETATO was written only at the end of the loop. a stop with every
+    // row already sent (the mouse after the last ENTER, a last check that
+    // timed out or came back red) left nothing to send: AVVIA stayed off,
+    // "Verifica" never completed the file, the next export of that line was
+    // refused as out of order, and the file came back at every start
+    private static void stoppedAfterTheLastRow_canStillBeClosed() throws Exception {
+        portal.clear();
+        Hands h = new Hands();
+        h.grabPair = 4;
+        h.grabCheck = 6;   // after ENTER of row 4, the last one
+        FileModePanel p = panel(h, "repLast");
+        File f = sevenRows("ultima.csv", 4);
+        open(p, f);
+        startAndWait(p);
+        String sha = CsvImport.read(Files.readAllBytes(f.toPath())).computedSha;
+        ImportLedger led = ImportLedger.in(new File(home, "repLast"));
+        check("the run stopped with every row sent", portal.size() == 4 && led.state(sha).interrupted());
+
+        // after a restart: the same file, opened again
+        h.grabPair = -1;
+        FileModePanel again = panel(h, "repLast");
+        open(again, f);
+        check("the lever offers the closing check", lever(again) != null && lever(again).isEnabled()
+              && lever(again).getText().startsWith("VERIFICA E CHIUDI"));
+        check("the banner does not claim it is all done", !again.bannerText().contains("Niente da inviare"));
+        SwingUtilities.invokeAndWait(() -> lever(again).doClick());
+        long until = System.currentTimeMillis() + 15000;
+        Thread.sleep(200);
+        while (again.isRunning() && System.currentTimeMillis() < until) Thread.sleep(50);
+        Thread.sleep(200);
+        check("a clean closing check completes the file", led.state(sha).completed);
+        check("nothing was sent again", portal.size() == 4);
+        check("the next export of that line is in order", led.orderProblem("L9", "2026-10-14", 2) == null);
+    }
+
     static JButton lever(FileModePanel p) {
         return find(p, b -> b.getText() != null && (b.getText().startsWith("AVVIA")
             || b.getText().startsWith("PRE-VOLO") || b.getText().startsWith("Riprendi")
+            || b.getText().startsWith("VERIFICA E CHIUDI")
             || b.getText().startsWith("REGISTRO")));
     }
 

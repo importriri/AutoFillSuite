@@ -141,7 +141,9 @@ public class FileModePanel extends JPanel {
 
         g.gridy = y++;
         btnStart = AppTheme.primary("AVVIA", AppTheme.GREEN, Icons.play(AppTheme.ICON, AppTheme.ON_ACCENT));
-        btnStart.addActionListener(e -> start());
+        btnStart.addActionListener(e -> {
+            if (needsClosingCheck()) verifyNow(); else start();
+        });
         card.add(btnStart, g);
 
         g.gridy = y++;
@@ -394,10 +396,13 @@ public class FileModePanel extends JPanel {
         counter.setVisible(progress);
         lblLast.setVisible(progress);
         if (!progress) lblLast.setText(" ");
+        boolean closing = needsClosingCheck();
         btnStart.setText(running ? "REGISTRO..."
+                       : closing ? "VERIFICA E CHIUDI"
                        : preflightRequired() && !preflightDone ? "PRE-VOLO E AVVIA"
                        : resume ? "Riprendi da " + next.row.n : "AVVIA");
-        btnStart.setEnabled(!running && !verifying && !blocked && read != null && toSend() > 0);
+        btnStart.setEnabled(!running && !verifying && read != null
+                            && (closing || (!blocked && toSend() > 0)));
         if (running || verifying) return;
         if (read == null) {
             state(AppTheme.SURFACE2, AppTheme.TEXT, hardReason == null ? "Apri un CSV di Registro QR" : hardReason);
@@ -409,6 +414,8 @@ public class FileModePanel extends JPanel {
             ImportLedger.FileState st = ledger().state(sha);
             state(AppTheme.RED, AppTheme.ON_ACCENT, st.completed
                 ? "GIÀ REGISTRATO " + st.completedAt.substring(0, 16) : "BLOCCATO — serve una conferma");
+        } else if (closing) {
+            state(AppTheme.PEACH, AppTheme.ON_ACCENT, "TUTTO INVIATO — manca la verifica finale");
         } else if (toSend() == 0) {
             state(AppTheme.GREEN, AppTheme.ON_ACCENT, "Niente da inviare: tutto già sul portale");
         } else if (resume) {
@@ -795,7 +802,19 @@ public class FileModePanel extends JPanel {
                         r.getMatched() + " / " + total, "verificate", 100, false);
     }
 
-    /** Verifica, by hand: everything sent from this file so far. */
+    /**
+     * Every row went out, but the file was never completed: the run stopped
+     * after the last ENTER, or its last check timed out or came back red.
+     * Nothing is left to send, so the lever becomes the closing check.
+     */
+    boolean needsClosingCheck() {
+        if (read == null || sha == null || toSend() > 0 || sentCount() == 0) return false;
+        ImportLedger.FileState st = ledger().state(sha);
+        return st.started && !st.completed;
+    }
+
+    /** Verifica, by hand: everything sent from this file so far. A clean check
+     *  with nothing left to send completes the file. */
     private void verifyNow() {
         if (running || verifying || sentCount() == 0) return;
         if (!takeRobot()) return;
@@ -807,9 +826,15 @@ public class FileModePanel extends JPanel {
                 Boolean clean = verifyBlock();
                 if (clean == null) why = "verifica non riuscita";
                 else if (!clean) why = "VERIFICA ROSSA";
+                else if (needsClosingCheck()) {
+                    ledger().blockVerified(sha, sentCount(), true);
+                    ledger().completed(sha, true);
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 why = "interrotto";
+            } catch (IOException e) {
+                why = "registro non scrivibile: " + e.getMessage();
             }
             final String w = why;
             SwingUtilities.invokeLater(() -> {
@@ -817,6 +842,9 @@ public class FileModePanel extends JPanel {
                 freeRobot();
                 refresh(null);
                 if (w != null) state(AppTheme.RED, AppTheme.ON_ACCENT, w);
+                else if (sha != null && ledger().state(sha).completed && toSend() == 0) {
+                    state(AppTheme.GREEN, AppTheme.ON_ACCENT, "FATTO — " + sentCount() + " / " + jobs.size() + " verificate");
+                }
             });
         }, "file-verify");
         t.setDaemon(true);
