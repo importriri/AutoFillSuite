@@ -263,6 +263,35 @@ public class MainWindow extends JFrame implements RunContext {
 
     // ── HUD ────────────────────────────────────────────────────────────────
 
+    /**
+     * Where the HUD goes: the bottom of the screen, in the middle, unless a
+     * coordinate the robot clicks is there. Range and print check the window
+     * only at the start, against the whole cockpit: a target in that strip
+     * would be clicked on the HUD, maybe on its STOP.
+     */
+    static Point hudLocation(Rectangle screen, int w, int h, java.util.Collection<Point> targets) {
+        Point home = new Point(screen.x + (screen.width - w) / 2, screen.y + screen.height - h - 12);
+        if (WindowGuard.isClear(new Rectangle(home.x, home.y, w, h), targets)) return home;
+        Point safe = WindowGuard.safeLocation(new Rectangle(home.x, home.y, w, h), targets, screen);
+        return safe != null ? safe : home;
+    }
+
+    /** Every coordinate the robot may click, as memorized in the settings. */
+    private java.util.List<Point> memorizedTargets() {
+        java.util.List<Point> out = new java.util.ArrayList<>();
+        String[][] keys = {
+            { SettingsManager.REG_COORD_X, SettingsManager.REG_COORD_Y },
+            { SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y },
+            { SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y },
+            { SettingsManager.PRINT_COORD_X, SettingsManager.PRINT_COORD_Y },
+        };
+        for (String[] k : keys) {
+            int x = cfg.getInt(k[0], -1), y = cfg.getInt(k[1], -1);
+            if (x >= 0 && y >= 0) out.add(new Point(x, y));
+        }
+        return out;
+    }
+
     /** Collapse to the bar (or back). Remembers where the cockpit was. */
     private void setHudMode(boolean on) {
         if (on == hudMode) return;
@@ -279,8 +308,7 @@ public class MainWindow extends JFrame implements RunContext {
             Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment()
                                                   .getMaximumWindowBounds();
             setSize(HUD_W, hudH);
-            setLocation(screen.x + (screen.width - HUD_W) / 2,
-                        screen.y + screen.height - hudH - 12);
+            setLocation(hudLocation(screen, HUD_W, hudH, memorizedTargets()));
         } else {
             ((CardLayout) views.getLayout()).show(views, VIEW_COCKPIT);
             hudMode = false;
