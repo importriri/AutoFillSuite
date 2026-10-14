@@ -73,6 +73,16 @@ public final class ResultsOwnershipTest {
         });
         check("...and its retry and cancel", calls[0] == 0);
 
+        // at start: a range never verified, and a file left half way. the file
+        // was loaded after the range offer and hid its VERIFICA ORA / Ignora
+        SwingUtilities.invokeAndWait(() -> {
+            r.offerPendingVerification(10, () -> { }, () -> { });
+            r.beginFileSession("registro_L2_2026-10-13_01.csv");
+        });
+        boolean offered = false;
+        for (JButton b : buttons(r)) if ("VERIFICA ORA".equals(b.getText()) && b.isVisible()) offered = true;
+        check("a file reloaded at start keeps the offer to verify the last range", offered);
+
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
         System.exit(failed > 0 ? 1 : 0);

@@ -83,6 +83,7 @@ public class ResultsPanel extends JPanel {
     private final JButton btnQueueEdit = AppTheme.secondary("Modifica", null);
     private final JButton btnQueueDelete = AppTheme.secondary("Elimina", null);
 
+    private boolean pendingOffered;   // VERIFICA ORA / Ignora waiting for an answer
     private Runnable onRetry  = () -> {};
     private Runnable onCancel = () -> {};
     private int total = 0;
@@ -578,8 +579,10 @@ public class ResultsPanel extends JPanel {
     private void buttons(boolean retry, boolean cancel) {
         btnRetry.setVisible(retry);
         btnCancel.setVisible(cancel);
-        btnPending.setVisible(false);
-        btnPendingNo.setVisible(false);
+        // the offer to verify an unchecked range stays until it is answered:
+        // a file reloaded at start used to hide it
+        btnPending.setVisible(pendingOffered);
+        btnPendingNo.setVisible(pendingOffered);
     }
 
     // ── report ─────────────────────────────────────────────────────────────
@@ -802,6 +805,7 @@ public class ResultsPanel extends JPanel {
         btnRetry.setVisible(false);
         btnCancel.setVisible(false);
         btnReport.setVisible(false);
+        pendingOffered = true;
         btnPending.setVisible(true);
         btnPendingNo.setVisible(true);
         for (java.awt.event.ActionListener a : btnPending.getActionListeners()) {
@@ -815,6 +819,7 @@ public class ResultsPanel extends JPanel {
     }
 
     private void hidePending() {
+        pendingOffered = false;
         btnPending.setVisible(false);
         btnPendingNo.setVisible(false);
     }
