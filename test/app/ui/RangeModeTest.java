@@ -59,6 +59,7 @@ public final class RangeModeTest {
 
         grabInTheFirstCycle_stopsBeforeEnter();
         grabAfterEnter_countsTheLabel_andStops();
+        grabDuringALotFix_stopsBeforeEnter();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");

@@ -360,18 +360,30 @@ public class RangeModePanel extends JPanel {
         refreshButtons();
         status.setString("Correzione " + code + "...");
         new Thread(() -> {
-            app.core.RobotEngine robot = app.core.RobotEngine.getInstance();
             try {
-                robot.doubleClick(cx, cy);   robot.sleep(tKey);
-                robot.pasteText(code);       robot.sleep(tKey);
-                robot.pressTab();            robot.sleep(tKey);
-                robot.pasteText(newLot);     robot.sleep(tKey);
-                robot.pressTab();            robot.sleep(tKey);
-                robot.pressEnter();          robot.sleep(tPost);
+                // the same burst and fail-safe as everywhere: before ENTER the
+                // correction did not happen; after it, it did
+                PairBurst.Outcome o = PairBurst.run(hands, new Point(cx, cy), null, code, newLot,
+                    new PairBurst.Timing(tKey, tKey, tPost), true, null);
                 SwingUtilities.invokeLater(() -> {
-                    results.markSent(row);
-                    status.setString("Correzione inviata — riverifica per confermare");
-                    ctx.focusHome(tfScan);
+                    switch (o) {
+                        case SENT:
+                            results.markSent(row);
+                            status.setString("Correzione inviata — riverifica per confermare");
+                            ctx.focusHome(tfScan);
+                            break;
+                        case SENT_THEN_GRABBED:
+                            results.markSent(row);
+                            status.setString("Correzione inviata, poi mouse mosso — riverifica");
+                            break;
+                        case NOT_SENT:
+                            Toolkit.getDefaultToolkit().beep();
+                            status.setString("Mouse mosso: correzione di " + code + " NON inviata");
+                            break;
+                        default:
+                            Toolkit.getDefaultToolkit().beep();
+                            status.setString("Robot non disponibile: correzione NON inviata");
+                    }
                 });
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
