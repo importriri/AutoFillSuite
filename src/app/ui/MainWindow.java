@@ -165,9 +165,7 @@ public class MainWindow extends JFrame implements RunContext {
     void closeApp(boolean ask) {
         String busy = busyReason();
         if (ask && busy != null) {
-            int c = JOptionPane.showConfirmDialog(this, busy + "\n\nChiudere comunque?",
-                "Chiudi AutoFillSuite", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (c != JOptionPane.YES_OPTION) return;
+            if (!SafeConfirm.ask(this, busy + "\n\nChiudere comunque?", "Chiudi AutoFillSuite")) return;
         }
         cfg.save();   // settings are write-through
         results.shutdown();

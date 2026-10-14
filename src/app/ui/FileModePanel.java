@@ -464,9 +464,8 @@ public class FileModePanel extends JPanel {
         area.setEditable(false);
         area.setColumns(42);
         area.setRows(Math.min(14, 3 + message.length() / 50));
-        int c = JOptionPane.showConfirmDialog(this, new JScrollPane(area), "Conferma",
-            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        return c == JOptionPane.YES_OPTION;
+        area.setFocusable(false);   // the keyboard stays on No: see SafeConfirm
+        return SafeConfirm.ask(this, new JScrollPane(area), "Conferma");
     }
 
     // ── run ──────────────────────────────────────────────────────────────

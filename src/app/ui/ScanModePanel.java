@@ -554,13 +554,10 @@ public class ScanModePanel extends JPanel {
     private void deleteQueued(int row) {
         Pair pair = queuedAt(row);
         if (pair == null || !canEditQueued(row)) return;
-        int choice = JOptionPane.showConfirmDialog(
-            this,
+        boolean yes = SafeConfirm.ask(this,
             "Rimuovere dalla coda?\n\nQR 1: " + pair.q1 + "\nQR 2: " + pair.q2,
-            "Elimina coppia",
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.WARNING_MESSAGE);
-        if (choice != JOptionPane.YES_OPTION || !canEditQueued(row)) return;
+            "Elimina coppia");
+        if (!yes || !canEditQueued(row)) return;
 
         try {
             if (store == null) throw new java.io.IOException(storeError);
@@ -996,11 +993,10 @@ public class ScanModePanel extends JPanel {
 
     /** Scarta, after a confirmation: the old journal is renamed and kept, the queue starts empty. */
     void discardQueue() {
-        int c = JOptionPane.showConfirmDialog(this,
-            "Scartare " + foundPending.size() + " coppie non inviate?\n"
-            + "Il giornale resta salvato (rinominato con la data), ma la coda riparte vuota.",
-            "Scarta la coda", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (c != JOptionPane.YES_OPTION) return;
+        if (!SafeConfirm.ask(this,
+                "Scartare " + foundPending.size() + " coppie non inviate?\n"
+                + "Il giornale resta salvato (rinominato con la data), ma la coda riparte vuota.",
+                "Scarta la coda")) return;
         try {
             if (store != null) store.newSession();
         } catch (java.io.IOException ex) {
@@ -1014,9 +1010,7 @@ public class ScanModePanel extends JPanel {
     }
 
     private boolean askConfirm(String message) {
-        int c = JOptionPane.showConfirmDialog(this, message, "Già registrata oggi",
-            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        return c == JOptionPane.YES_OPTION;
+        return SafeConfirm.ask(this, message, "Già registrata oggi");
     }
 
     /** What the banner says now (the tests read it). */

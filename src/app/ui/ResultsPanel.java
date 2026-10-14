@@ -37,6 +37,9 @@ public class ResultsPanel extends JPanel {
     // daily file, one section per run; the start time is the section's identity
     private String runStamp = nextRunStamp();
     private String runDate  = today();
+    // the day's report as read at the start (or at the day change): see registeredToday
+    private String sentOnDiskDay = today();
+    private Map<String, String[]> sentOnDisk = readSentOnDisk(sentOnDiskDay);
     private String runMode  = "-";
     private String runLot   = "-";
     private boolean reportWritten = false;
@@ -342,20 +345,33 @@ public class ResultsPanel extends JPanel {
 
     /**
      * Every label sent today, with its lot and time: the day's report file
-     * (earlier runs, earlier app starts) and this app's own table on top.
+     * (earlier app starts) and this app's own table on top.
+     *
+     * Asked at every scan, on the interface thread: the report is read ONCE,
+     * at the start and again only when the day changes. What this app sends
+     * afterwards is in the table, which every send updates (earlier runs of the
+     * day stay in its day archive), so nothing is lost by not reading again.
      */
     public Map<String, String[]> registeredToday() {
-        Map<String, String[]> out = new java.util.LinkedHashMap<>();
-        File rep = app.config.AppFiles.dailyReport(today());
-        if (rep.exists()) {
-            try {
-                out.putAll(RunReport.sentToday(Files.readAllLines(rep.toPath(), StandardCharsets.UTF_8)));
-            } catch (IOException e) {
-                System.err.println("[results] report not readable: " + e.getMessage());
-            }
+        String day = today();
+        if (!day.equals(sentOnDiskDay)) {
+            sentOnDisk = readSentOnDisk(day);
+            sentOnDiskDay = day;
         }
+        Map<String, String[]> out = new java.util.LinkedHashMap<>(sentOnDisk);
         out.putAll(model.sentToday());
         return out;
+    }
+
+    private static Map<String, String[]> readSentOnDisk(String day) {
+        File rep = app.config.AppFiles.dailyReport(day);
+        if (!rep.exists()) return java.util.Collections.emptyMap();
+        try {
+            return RunReport.sentToday(Files.readAllLines(rep.toPath(), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            System.err.println("[results] report not readable: " + e.getMessage());
+            return java.util.Collections.emptyMap();
+        }
     }
 
     /** The table model, for the modes' own checks and the tests. */

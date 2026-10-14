@@ -72,6 +72,37 @@ public final class RegisteredTodayTest {
         check("a row only queued in the report is not 'registered today'",
               rp[0].registeredToday().get("LBL009") == null);
 
+        // the report used to be read again at every scan, on the interface
+        // thread. now it is read once: two sessions of the same day, the
+        // second one sees what the first sent, and this morning's report is
+        // known without going back to the disk (the file is gone meanwhile)
+        File reportFile = new File(home, "AutoFillSuite_report_" + java.time.LocalDate.now() + ".csv");
+        SwingUtilities.invokeAndWait(() -> {
+            rp[0].beginRun(1, "LOT-R");
+            rp[0].addLiveRow("LBL010", 1);
+            rp[0].resetIdle();
+        });
+        Thread.sleep(500);   // the report of the first session is written by a worker
+        Files.deleteIfExists(reportFile.toPath());
+        SwingUtilities.invokeAndWait(() -> rp[0].beginRun(1, "LOT-S"));
+        java.util.Map<String, String[]> seen = rp[0].registeredToday();
+        check("a second session sees what the first one sent", seen.get("LBL010") != null);
+        check("this morning's report is known without reading it again",
+              seen.get("LBL001") != null && "LOT-A".equals(seen.get("LBL001")[0]));
+
+        // the day changes: the new day's report is read, yesterday's is not carried over
+        java.time.LocalDate tomorrow = java.time.LocalDate.now().plusDays(1);
+        Files.write(new File(home, "AutoFillSuite_report_" + tomorrow + ".csv").toPath(),
+            ("RUN;" + tomorrow + ";08:00:00;lotto=-;modalita=scansione\n"
+             + "Etichetta;Lotto;OraInvio;Esito;Registrazioni;Dettaglio\n"
+             + "LBL050;LOT-T;08:00:05;OK;1;\n").getBytes(StandardCharsets.UTF_8));
+        ResultsPanel.clock = java.time.Clock.offset(java.time.Clock.systemDefaultZone(),
+                                                    java.time.Duration.ofDays(1));
+        seen = rp[0].registeredToday();
+        check("a new day reads the new day's report",
+              seen.get("LBL050") != null && seen.get("LBL001") == null);
+        ResultsPanel.clock = java.time.Clock.systemDefaultZone();
+
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
         System.exit(failed > 0 ? 1 : 0);

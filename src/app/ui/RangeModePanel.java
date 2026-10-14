@@ -197,9 +197,7 @@ public class RangeModePanel extends JPanel {
     }
 
     private boolean askConfirm(String message) {
-        int c = JOptionPane.showConfirmDialog(this, message, "Già registrate oggi",
-            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        return c == JOptionPane.YES_OPTION;
+        return SafeConfirm.ask(this, message, "Già registrate oggi");
     }
 
     /** Etichetta and Lotto trade places, and the label is read again. */
