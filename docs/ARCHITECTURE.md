@@ -380,6 +380,10 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | ReportAtomicTest | the day's report replaced whole or not at all, whatever the moment of the crash | Files.write truncating first: a crash left the report half empty |
 | ScanQueueJournalTest | the queue rebuilt from its journal; IN_INVIO without INVIATA comes back to verify; cut at every byte = exact prefix | pairs queued in A blocco lost with the app |
 | CrashTest | a JVM queueing pairs killed 10 times: every announced pair is on disk | — (proves the queue journal with a real kill) |
+| RangeModeTest | the range with fake hands: mouse checked at every step of every cycle and of the lot fix; QR patterns, Scambia; past 999 refused; labels registered today asked | the robot typing blind inside a cycle; a range of lots registered as labels; 998 + 5 = 1000 |
+| RegisteredTodayTest | a label sent earlier today with another lot asks first; the same lot only warns | a silent correction on the portal from a second session |
+| MidnightReportTest | a run across midnight stays in the file of its day | journal and verification of one run in two files |
+| SoundsTest | ok and error tones, silence without a sound card, no bare beep left | one faint beep nobody hears on the floor |
 | ShutdownTest | a send then an immediate close: the row is in the report | System.exit killing the report writer and the pending timer |
 | ManualRenderTest | the bundled manual loads and renders | — (new: the manual ships inside the JAR) |
 | RegistrationVerifierTest | the export↔run diff; the last registration wins | right then wrong lot painted green while the portal held the wrong one |
@@ -388,7 +392,8 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | CoreExtrasTest | guard, report, history, log round-trip | writer and parser drifting apart |
 | GlyphSafetyTest | no emoji in UI strings | empty boxes on Windows |
 | IconRenderTest | icons as pixels, hub = hole | a black disc from AlphaComposite.Clear |
-| RunTableModelTest | uncovered rows never green (GIÀ PRESENTE included); day-view index translation | a queued pair painted OK; a correction landing on history |
+| RunTableModelTest | uncovered rows never green (GIÀ PRESENTE included); a wrong lot keeps its tail; day-view index translation | a queued pair painted OK; a correction landing on history; the head of a lot shown instead of its end |
+| ScanTabSupportTest | TAB submits only on the marked QR 2; QR 1, Shift+TAB, other fields untouched; a third field breaks nothing | a scanner with a TAB suffix; the "exactly two fields" rule |
 | SpinnerCommitTest | on-screen number = executed number | chose 20, printed 30 |
 | TextFitTest | overflow keeps the tail | unreadable final digits in the bar |
 | StartupSmokeTest (×2) | the real app under Xvfb: clipping on every card and tab, queue, banners, HUD, geometry | Windows-only clipping, lopsided stack |

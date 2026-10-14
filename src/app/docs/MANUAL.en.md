@@ -41,8 +41,24 @@ For N consecutive labels of the same batch.
    robot registers every serial, one row per label appearing live in the
    results table. The state banner tracks the phase: REGISTRAZIONE,
    VERIFICA, TUTTO OK / PROBLEMI.
-4. **To stop at any time: just move the mouse.** That is the fail-safe.
-   **Stop** works too.
+4. **To stop at any time: just move the mouse.** That is the fail-safe, and it
+   is checked at every step, the first label included: moved **before** the
+   save, that label is not registered; **after** it, it is registered and the
+   robot stops anyway. The lot correction by double click is guarded the same
+   way. **Stop** works too.
+
+The range safeties:
+
+- **Lot in Etichetta.** When the two QR codes are described (Impostazioni >
+  A scansione), a lot scanned into Etichetta is recognised: yellow banner and
+  **Scambia** (also F2). A code that looks like neither is refused.
+- **Past 999.** The last three digits are the ones that grow: a range reaching
+  1000 (998 + 5) would build labels with one digit more, which do not exist.
+  The app refuses it: «l'intervallo supera 999».
+- **Registered today.** If some labels of the range were already registered
+  today with **another** lot, the app lists them before starting: the last one
+  wins on the portal, so it would be a correction. With the **same** lot it is
+  only a re-send, shown in the status bar.
 5. **Nuova sessione** clears the table, counters and banner for a fresh
    start. Coordinates and timings are kept.
 
@@ -125,6 +141,12 @@ Two practical rules:
   under **Impostazioni > A scansione > Sicure**, but it is on for a reason.
 - **Duplicates.** The same label twice in one session is a scanner that fired
   twice: the app refuses it and beeps.
+- **Registered today.** If the label was already registered today (another
+  session, or before the app was reopened) with **another** lot, the app asks
+  first, saying when and with which lot: this one will win on the portal, so it
+  is a correction. With the **same** lot it is a re-send: a warning only.
+- **Sounds.** One short high tone = fine; two low tones = error. Volume and
+  on/off in **Impostazioni > Finestra**.
 - **Half-scanned pair.** Leave a single QR in the fields while the queue is
   full and after a few seconds the banner says so: **COPPIA INCOMPLETA — la
   coda aspetta**. Clear the fields (the X) or complete the pair.
@@ -222,6 +244,9 @@ STOP) and restores itself when the verification ends. Toggle it with the
 | Verification always red on the export step | Wrong **Cartella download**, or **Prefisso export** does not match the file names, or the site is slow: raise the timeout in Impostazioni > Verifica. |
 | Window opens off-screen after unplugging a monitor | It re-centers itself on launch. |
 | A run crashed before verifying | On the next launch the app offers **VERIFICA ORA** for the pending run. |
+| «l'intervallo supera 999» | The last three digits would reach 1000: split the range, the second part starting from the new label. |
+| «Lotto in Etichetta» in Intervallo | The lot went into the Etichetta field: press **Scambia** (F2). |
+| «already registered today» question | That label has a lot on the portal since this morning: confirm only to really correct it. |
 | I closed the app with a full queue | Nothing is lost: reopen, **Ripristina** on the Scansione card, then REGISTRA TUTTO or RIPRENDI. |
 | «GIÀ FATTO» when opening a file | That file was registered already. If it really must be done again: **Registra comunque...** |
 | «FUORI ORDINE» / «VECCHIO» | The previous export of the same day is missing, or a newer one went first: register the files in order. |

@@ -42,8 +42,25 @@ Per N etichette consecutive dello stesso lotto.
    il browser; poi il robot registra ogni seriale, con una riga per
    etichetta che appare in tabella in tempo reale. Il banner segue la fase:
    REGISTRAZIONE, VERIFICA, TUTTO OK / PROBLEMI.
-4. **Per fermare in qualunque momento: muovi il mouse.** È il fail-safe.
-   Funziona anche **Stop**.
+4. **Per fermare in qualunque momento: muovi il mouse.** È il fail-safe, e
+   vale a ogni passo, anche nella prima etichetta: se lo muovi **prima** del
+   salvataggio quell'etichetta non è registrata; **dopo**, è registrata e il
+   robot si ferma lo stesso. Vale anche per la correzione del lotto col doppio
+   click. Funziona anche **Stop**.
+
+Le sicure dell'intervallo:
+
+- **Lotto in Etichetta.** Se hai descritto i due QR (Impostazioni > A
+  scansione), un lotto sparato nel campo Etichetta viene riconosciuto:
+  banner giallo e **Scambia** (anche F2). Un codice che non somiglia a nessuno
+  dei due viene rifiutato.
+- **Oltre 999.** Le ultime tre cifre sono quelle che crescono: un intervallo
+  che arriverebbe a 1000 (998 + 5) creerebbe etichette con una cifra in più,
+  che non esistono. L'app lo rifiuta: «l'intervallo supera 999».
+- **Già registrate oggi.** Se alcune etichette dell'intervallo sono già state
+  registrate oggi con un **altro** lotto, l'app te lo dice con l'elenco prima
+  di partire: sul portale vince l'ultima, quindi sarebbe una correzione. Con
+  lo **stesso** lotto è solo un reinvio e lo segnala nella barra.
 5. **Nuova sessione** azzera tabella, contatori e banner per ripartire
    puliti. Coordinate e tempi restano.
 
@@ -128,6 +145,12 @@ Due regole pratiche:
   **Impostazioni > A scansione > Sicure**, ma è accesa per un motivo.
 - **Doppioni.** La stessa etichetta due volte nella stessa sessione è uno
   scanner che ha sparato due volte: l'app la rifiuta e suona.
+- **Già registrata oggi.** Se l'etichetta è già stata registrata oggi (in
+  un'altra sessione, o prima di riaprire l'app) con un **altro** lotto, l'app
+  chiede conferma dicendo quando e con che lotto: sul portale vincerà questo,
+  quindi è una correzione. Con lo **stesso** lotto è un reinvio: solo un avviso.
+- **Suoni.** Un suono acuto corto = tutto bene; due suoni bassi = errore.
+  Volume e acceso/spento in **Impostazioni > Finestra**.
 - **Coppia incompleta.** Se lasci un solo QR nei campi mentre la coda è piena,
   dopo qualche secondo il banner lo dice: **COPPIA INCOMPLETA — la coda
   aspetta**. Svuota i campi (la X) o completa la coppia.
@@ -228,6 +251,9 @@ tasto **HUD**.
 | Verifica sempre rossa sul passo export | **Cartella download** sbagliata, o **Prefisso export** che non combacia coi nomi file, o sito lento: alza il timeout in Impostazioni > Verifica. |
 | Finestra fuori schermo dopo aver staccato un monitor | Al riavvio si ricentra da sola. |
 | Un run è crashato prima della verifica | Al prossimo avvio l'app offre **VERIFICA ORA** per il run in sospeso. |
+| «l'intervallo supera 999» | Le tre cifre finali arriverebbero a 1000: dividi l'intervallo in due, il secondo partendo dalla nuova etichetta. |
+| «Lotto in Etichetta» nell'Intervallo | Hai sparato il lotto nel campo Etichetta: premi **Scambia** (F2). |
+| Domanda «già registrata oggi» | Quell'etichetta ha già un lotto sul portale da stamattina: conferma solo se vuoi davvero correggerlo. |
 | Ho chiuso l'app con la coda piena | Niente è perso: riapri, **Ripristina** sulla carta Scansione, poi REGISTRA TUTTO o RIPRENDI. |
 | «GIÀ FATTO» aprendo un file | Quel file è già stato registrato. Se serve davvero rifarlo: **Registra comunque...** |
 | «FUORI ORDINE» / «VECCHIO» | Manca l'export precedente della stessa giornata, o ne è già passato uno più nuovo: registra i file in ordine. |
