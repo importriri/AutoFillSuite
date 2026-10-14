@@ -57,6 +57,15 @@ public final class PairBurst {
         void sent();
     }
 
+    /**
+     * Called right before ENTER, after the last mouse check: the place to record
+     * "this pair may be on the portal from now on". If it throws, ENTER is NOT
+     * pressed and the burst is FAILED: never send what could not be recorded.
+     */
+    public interface BeforeEnter {
+        void sending() throws Exception;
+    }
+
     private PairBurst() {}
 
     /**
@@ -67,6 +76,13 @@ public final class PairBurst {
      */
     public static Outcome run(Hands h, Point target, Point returnTo, String label, String lot,
                               Timing t, boolean guarded, AfterEnter after)
+            throws InterruptedException {
+        return run(h, target, returnTo, label, lot, t, guarded, null, after);
+    }
+
+    /** The same, with a hook right before ENTER as well. */
+    public static Outcome run(Hands h, Point target, Point returnTo, String label, String lot,
+                              Timing t, boolean guarded, BeforeEnter before, AfterEnter after)
             throws InterruptedException {
         boolean entered = false;
         try {
@@ -85,6 +101,8 @@ public final class PairBurst {
 
             h.pressTab();       h.sleep(t.key);
             if (guarded && h.isMouseMoved(target)) return Outcome.NOT_SENT;
+
+            if (before != null) before.sending();
 
             // point of no return: after ENTER the pair IS registered, so it can
             // never go back in the queue — a re-send would double-register it

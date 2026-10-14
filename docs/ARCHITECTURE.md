@@ -112,6 +112,24 @@ heartbeat until that lull arrives. Firing it on the count alone tore a
 released block in half: the robot walked off to click Export with pairs
 still queued. The check runs against a **snapshot** of the pairs sent so far.
 
+### The queue on disk
+
+In **A blocco** the operator may scan dozens of pairs before releasing them,
+and the queue lived in RAM only: a closed app or a power cut lost them, and
+nobody knew which. The queue is now write-ahead, with the journal Registro QR
+uses for its days (`QueueJournal`, adapted from ScanLedger: CRC per line,
+forced, a torn last line cut, a broken line in the middle never appended to):
+`ScanQueueStore` writes `ACCODA`, `MODIFICA_CODA`, `TOGLI_CODA`, `IN_INVIO`
+(right before ENTER, through PairBurst's `BeforeEnter`), `INVIATA` (right after
+ENTER) and `SESSIONE_NUOVA`, and a pair enters the queue and the table only
+after its line is forced. At start the pairs queued and not sent are offered
+back (**Ripristina** / **Scarta**); restored pairs never fire on their own. A
+pair left `IN_INVIO` without `INVIATA` — the PC went off between ENTER and the
+line — comes back **DA VERIFICARE**, covered by the next verification, never
+queued again. A new session renames the journal with the date, never deletes
+it. If the BeforeEnter line cannot be written, ENTER is not pressed: nothing is
+sent that could not be recorded.
+
 ### Who owns the HUD
 
 `jobStarted` / `jobFinished` are the whole contract: the window collapses to
@@ -344,6 +362,8 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | PreflightTest | already there / to send / conflict, by the portal's last lot | a correction already made by hand on the portal |
 | FileModePanelTest | the "Da file" card with a fake robot and portal: checks, overrides, conflict, blocks of 3 over 7 checked after 3, 6, 7, fail-safe before and after ENTER, resume | — (new mode) |
 | ReportAtomicTest | the day's report replaced whole or not at all, whatever the moment of the crash | Files.write truncating first: a crash left the report half empty |
+| ScanQueueJournalTest | the queue rebuilt from its journal; IN_INVIO without INVIATA comes back to verify; cut at every byte = exact prefix | pairs queued in A blocco lost with the app |
+| CrashTest | a JVM queueing pairs killed 10 times: every announced pair is on disk | — (proves the queue journal with a real kill) |
 | ShutdownTest | a send then an immediate close: the row is in the report | System.exit killing the report writer and the pending timer |
 | ManualRenderTest | the bundled manual loads and renders | — (new: the manual ships inside the JAR) |
 | RegistrationVerifierTest | the export↔run diff; the last registration wins | right then wrong lot painted green while the portal held the wrong one |

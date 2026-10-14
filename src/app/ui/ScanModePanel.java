@@ -58,7 +58,8 @@ public class ScanModePanel extends JPanel {
     private static final class Pair {
         String q1, q2;
         int row;
-        Pair(String q1, String q2, int row) { this.q1 = q1; this.q2 = q2; this.row = row; }
+        long id;    // the pair's identity in the queue journal
+        Pair(String q1, String q2, int row, long id) { this.q1 = q1; this.q2 = q2; this.row = row; this.id = id; }
     }
 
     private final SettingsManager cfg   = SettingsManager.getInstance();
@@ -67,6 +68,14 @@ public class ScanModePanel extends JPanel {
         new File(System.getProperty("user.home"), "AutoFillSuite_verifiche.txt").toPath());
 
     private final LinkedBlockingDeque<Pair> queue = new LinkedBlockingDeque<>();
+    /** The queue on disk: every change is forced there first. null = cannot write. */
+    private ScanQueueStore store;
+    private String storeError = "";
+    /** What the last run left in the queue journal, offered once at start. */
+    private List<ScanQueueStore.Item> foundPending = new java.util.ArrayList<>();
+    private List<ScanQueueStore.Item> foundUnsure = new java.util.ArrayList<>();
+    private JPanel recoverBox;
+    private JLabel recoverText;
     private final Map<String, String> session = new LinkedHashMap<>();   // EDT only
 
     private volatile boolean paused    = false;
@@ -107,7 +116,9 @@ public class ScanModePanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(AppTheme.BASE);
         setBorder(BorderFactory.createEmptyBorder(0, 9, 8, 9));
+        openStore();
         add(buildCard(), BorderLayout.CENTER);
+        offerRecovery();
 
         Thread worker = new Thread(this::drainLoop, "dualscan-worker");
         worker.setDaemon(true);
@@ -165,6 +176,26 @@ public class ScanModePanel extends JPanel {
         g.insets = new Insets(3, 3, 2, 3);
         banner = AppTheme.banner();
         card.add(banner, g);
+
+        // the queue a closed app left behind: offered once, at start
+        y++; g.gridy = y;
+        recoverBox = new JPanel(new BorderLayout(0, 3));
+        recoverBox.setOpaque(false);
+        recoverText = new JLabel(" ");
+        recoverText.setFont(AppTheme.F_BOLD);
+        recoverText.setForeground(AppTheme.PEACH);
+        JPanel rb = new JPanel(new GridLayout(1, 2, 6, 0));
+        rb.setOpaque(false);
+        JButton restore = AppTheme.secondary("Ripristina", Icons.retry(AppTheme.ICON, AppTheme.SUBTEXT));
+        JButton discard = AppTheme.secondary("Scarta", Icons.cross(AppTheme.ICON, AppTheme.SUBTEXT));
+        restore.addActionListener(e -> restoreQueue());
+        discard.addActionListener(e -> discardQueue());
+        rb.add(restore);
+        rb.add(discard);
+        recoverBox.add(recoverText, BorderLayout.NORTH);
+        recoverBox.add(rb, BorderLayout.SOUTH);
+        recoverBox.setVisible(false);
+        card.add(recoverBox, g);
         g.insets = new Insets(2, 3, 2, 3);
 
         // modalita': un segmento, non una checkbox di sistema
@@ -381,9 +412,16 @@ public class ScanModePanel extends JPanel {
             if (blocked != null) { setState(ERROR, blocked); return; }
         }
 
+        // write-ahead: the pair is on disk before it is in the queue or the table
+        ScanQueueStore.Item item = journalEnqueue(q1, q2);
+        if (item == null) {
+            Toolkit.getDefaultToolkit().beep();
+            setState(ERROR, "Coda non salvabile su disco: coppia NON accodata — " + storeError);
+            return;
+        }
         if (!sessionStarted) { results.beginSession(); sessionStarted = true; }
         int row = results.addQueuedPair(q1, q2);
-        queue.addLast(new Pair(q1, q2, row));
+        queue.addLast(new Pair(q1, q2, row, item.id));
         tfQr1.setText("");
         tfQr2.setText("");
         tfQr1.requestFocusInWindow();
@@ -476,6 +514,13 @@ public class ScanModePanel extends JPanel {
                 continue;
             }
 
+            try {
+                if (store == null) throw new java.io.IOException(storeError);
+                store.edit(pair.id, q1, q2);
+            } catch (java.io.IOException ex) {
+                setState(ERROR, "Disco non scrive: modifica annullata — " + ex.getMessage());
+                return;
+            }
             pair.q1 = q1;
             pair.q2 = q2;
             results.updateQueuedPair(row, q1, q2);
@@ -497,6 +542,13 @@ public class ScanModePanel extends JPanel {
             JOptionPane.WARNING_MESSAGE);
         if (choice != JOptionPane.YES_OPTION || !canEditQueued(row)) return;
 
+        try {
+            if (store == null) throw new java.io.IOException(storeError);
+            store.remove(pair.id);
+        } catch (java.io.IOException ex) {
+            setState(ERROR, "Disco non scrive: coppia lasciata in coda — " + ex.getMessage());
+            return;
+        }
         if (!queue.remove(pair)) return;
         if (!results.removeQueuedPair(row)) {
             queue.addLast(pair);
@@ -589,9 +641,21 @@ public class ScanModePanel extends JPanel {
         SwingUtilities.invokeLater(() -> setState(BUSY, null));
         try {
             Point back = appPoint;   // return focus to the app at once
+            final long id = pair.id;
             PairBurst.Outcome outcome = PairBurst.run(robot, target,
                 back == null ? null : new Point(back.x + 20, back.y + 10),
-                pair.q1, pair.q2, new PairBurst.Timing(tFocus, tKey, tEnter), guarded, null);
+                pair.q1, pair.q2, new PairBurst.Timing(tFocus, tKey, tEnter), guarded,
+                () -> {
+                    if (store == null) throw new java.io.IOException("coda non salvabile: " + storeError);
+                    store.sending(id);
+                },
+                () -> {
+                    try {
+                        store.sent(id);
+                    } catch (java.io.IOException ex) {
+                        System.err.println("[queue] INVIATA not recorded: " + ex.getMessage());
+                    }
+                });
             switch (outcome) {
                 case NOT_SENT:
                     failSafe(pair);
@@ -609,6 +673,12 @@ public class ScanModePanel extends JPanel {
                 default:
                     paused = true;
                     releasing = false;
+                    // the operator is told to scan it again: it must not come back at restart
+                    try {
+                        if (store != null) store.remove(pair.id);
+                    } catch (java.io.IOException ignored) {
+                        // a pair left IN_INVIO comes back "da verificare": still safe
+                    }
                     SwingUtilities.invokeLater(() -> {
                         endBlock();
                         Toolkit.getDefaultToolkit().beep();
@@ -746,7 +816,12 @@ public class ScanModePanel extends JPanel {
         setState(VERIFY, "Verifica sessione in corso...");
         results.setActions(() -> verifySession(true), this::cancelVerify);
         results.setLotFixer((row, code, newLot) -> {
-            queue.addLast(new Pair(code, newLot, row));
+            ScanQueueStore.Item fix = journalEnqueue(code, newLot);
+            if (fix == null) {
+                setState(ERROR, "Coda non salvabile su disco: correzione NON accodata — " + storeError);
+                return;
+            }
+            queue.addLast(new Pair(code, newLot, row, fix.id));
             refreshBanner();
             updateFireButton();
             if (batchMode && !releasing) {
@@ -815,12 +890,116 @@ public class ScanModePanel extends JPanel {
         starter.start();
     }
 
+    // ── the queue on disk ──────────────────────────────────────────────────
+
+    private void openStore() {
+        File dir = new File(cfg.get(SettingsManager.REPORT_DIR, System.getProperty("user.home")));
+        try {
+            store = ScanQueueStore.open(dir, java.time.Clock.systemDefaultZone());
+            foundPending = new java.util.ArrayList<>(store.pending());
+            foundUnsure = new java.util.ArrayList<>(store.unsure());
+        } catch (java.io.IOException ex) {
+            store = null;
+            storeError = ex.getMessage();
+        }
+    }
+
+    private ScanQueueStore.Item journalEnqueue(String q1, String q2) {
+        if (store == null) return null;
+        try {
+            return store.enqueue(q1, q2, batchMode ? "blocco" : "continuo");
+        } catch (java.io.IOException ex) {
+            storeError = ex.getMessage();
+            return null;
+        }
+    }
+
+    /** At start: what the last run left queued, or sending when it went away. */
+    private void offerRecovery() {
+        int n = foundPending.size(), u = foundUnsure.size();
+        if (n == 0 && u == 0) return;
+        recoverText.setText("Coda ritrovata: " + n + " coppie non inviate"
+                            + (u > 0 ? " · " + u + " da verificare" : ""));
+        recoverText.setToolTipText("La coda dell'ultima sessione era ancora salvata su disco");
+        recoverBox.setVisible(true);
+    }
+
+    String recoveryText() {
+        return recoverBox.isVisible() ? recoverText.getText() : null;
+    }
+
+    /**
+     * Ripristina: the pairs go back in their order, IN CODA, in the mode they
+     * were scanned in — and nothing fires until the operator says so. They
+     * move into a fresh journal (the old one is renamed and kept). A pair whose
+     * ENTER may have gone is listed "DA VERIFICARE" and covered by the next
+     * verification, never queued again.
+     */
+    void restoreQueue() {
+        if (store == null) return;
+        List<ScanQueueStore.Item> pending = foundPending, unsure = foundUnsure;
+        try {
+            store.newSession();
+        } catch (java.io.IOException ex) {
+            setState(ERROR, "Giornale della coda non ruotato: " + ex.getMessage());
+            return;
+        }
+        boolean block = false;
+        if (!sessionStarted) { results.beginSession(); sessionStarted = true; }
+        for (ScanQueueStore.Item it : unsure) {
+            results.addFileRow(it.q1, it.q2, "DA VERIFICARE");
+            session.put(it.q1, it.q2);
+            verifyDue = true;
+        }
+        for (ScanQueueStore.Item it : pending) {
+            block |= "blocco".equals(it.mode);
+            ScanQueueStore.Item again;
+            try {
+                again = store.enqueue(it.q1, it.q2, it.mode);
+            } catch (java.io.IOException ex) {
+                setState(ERROR, "Disco non scrive: ripristino interrotto — " + ex.getMessage());
+                break;
+            }
+            int row = results.addQueuedPair(it.q1, it.q2);
+            queue.addLast(new Pair(it.q1, it.q2, row, again.id));
+        }
+        if (block && !batchMode) modeSelector.select(1);
+        if (!batchMode) paused = true;   // continuo: never fire on its own after a restart
+        foundPending = new java.util.ArrayList<>();
+        foundUnsure = new java.util.ArrayList<>();
+        recoverBox.setVisible(false);
+        results.sessionCounters(sent, queue.size());
+        refreshBanner();
+        updateFireButton();
+        revalidate();
+    }
+
+    /** Scarta, after a confirmation: the old journal is renamed and kept, the queue starts empty. */
+    void discardQueue() {
+        int c = JOptionPane.showConfirmDialog(this,
+            "Scartare " + foundPending.size() + " coppie non inviate?\n"
+            + "Il giornale resta salvato (rinominato con la data), ma la coda riparte vuota.",
+            "Scarta la coda", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (c != JOptionPane.YES_OPTION) return;
+        try {
+            if (store != null) store.newSession();
+        } catch (java.io.IOException ex) {
+            setState(ERROR, "Giornale della coda non ruotato: " + ex.getMessage());
+            return;
+        }
+        foundPending = new java.util.ArrayList<>();
+        foundUnsure = new java.util.ArrayList<>();
+        recoverBox.setVisible(false);
+        revalidate();
+    }
+
     /** Why closing now would cut something short, or null. */
     String busyReason() {
         if (burstBusy) return "Il robot sta inviando una coppia.";
         if (verifying) return "C'è una verifica in corso.";
         if (!queue.isEmpty()) {
-            return queue.size() + " coppie in coda non ancora inviate: chiudendo vanno perse.";
+            return queue.size() + " coppie in coda non ancora inviate: restano salvate"
+                 + " e le ritrovi alla riapertura.";
         }
         return null;
     }
@@ -861,6 +1040,12 @@ public class ScanModePanel extends JPanel {
             return;
         }
         endBlock();
+        try {
+            if (store != null) store.newSession();   // the old journal is renamed, never deleted
+        } catch (java.io.IOException ex) {
+            setState(ERROR, "Giornale della coda non ruotato: " + ex.getMessage());
+            return;
+        }
         queue.clear();
         session.clear();
         sent = 0;

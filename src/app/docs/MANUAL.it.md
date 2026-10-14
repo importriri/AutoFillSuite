@@ -137,6 +137,23 @@ Due regole pratiche:
   diventa **NON INVIATA** e il robot va in pausa: nessuna coppia sparisce in
   silenzio.
 
+### 3.4 La coda è salvata su disco
+
+Ogni coppia che entra in coda viene scritta su disco **prima** di comparire in
+tabella (`AutoFillSuite_coda.giornale` nella cartella dei report). Se chiudi
+l'app con la coda piena, o salta la corrente, al prossimo avvio la carta
+Scansione mostra **Coda ritrovata: N coppie non inviate**:
+
+- **Ripristina** le rimette in coda nello stesso ordine, IN CODA, nella
+  modalità in cui le avevi sparate. Non parte niente da solo: in **A blocco**
+  premi REGISTRA TUTTO, in **Continuo** premi RIPRENDI.
+- **Scarta** (chiede conferma) riparte con la coda vuota. Il vecchio giornale
+  non si cancella: resta rinominato con la data.
+
+Una coppia per cui il PC si è spento proprio mentre il robot premeva INVIO
+torna come **DA VERIFICARE**: non viene rimessa in coda, la chiarisce la prima
+verifica.
+
 ## 4. STAMPA
 
 Nel portale il campo quantità **non** stampa più etichette: qualunque valore
@@ -211,6 +228,7 @@ tasto **HUD**.
 | Verifica sempre rossa sul passo export | **Cartella download** sbagliata, o **Prefisso export** che non combacia coi nomi file, o sito lento: alza il timeout in Impostazioni > Verifica. |
 | Finestra fuori schermo dopo aver staccato un monitor | Al riavvio si ricentra da sola. |
 | Un run è crashato prima della verifica | Al prossimo avvio l'app offre **VERIFICA ORA** per il run in sospeso. |
+| Ho chiuso l'app con la coda piena | Niente è perso: riapri, **Ripristina** sulla carta Scansione, poi REGISTRA TUTTO o RIPRENDI. |
 | «GIÀ FATTO» aprendo un file | Quel file è già stato registrato. Se serve davvero rifarlo: **Registra comunque...** |
 | «FUORI ORDINE» / «VECCHIO» | Manca l'export precedente della stessa giornata, o ne è già passato uno più nuovo: registra i file in ordine. |
 | «MODIFICATO» | Il CSV è stato risalvato fuori da Registro QR (Excel): chiedi il file originale, o rigeneralo da Registro QR (Storico). |

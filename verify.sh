@@ -35,6 +35,8 @@ java -cp out app.core.CoreExtrasTest
 java -cp out app.core.ScanGuardTest
 java -cp out app.core.PairBurstTest
 java -cp out app.core.ReportAtomicTest
+java -cp out app.core.ScanQueueJournalTest
+java -cp out app.core.CrashTest
 java -cp out app.core.CsvImportTest
 java -cp out app.core.ImportLedgerTest
 java -cp out app.core.PreflightTest

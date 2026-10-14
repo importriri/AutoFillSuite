@@ -285,6 +285,25 @@ public final class StartupSmokeTest {
                     fire = findButtonByPrefix(main, "REGISTRA TUTTO");
                     check("a new session empties the queue for real",
                           fire != null && fire.getText().contains("(0)") && !fire.isEnabled());
+                    if (saved) {
+                        ScanModePanel sp = findPanel(main, ScanModePanel.class);
+                        check("the queue left by the last session is offered back",
+                              sp != null && "Coda ritrovata: 2 coppie non inviate · 1 da verificare"
+                                  .equals(sp.recoveryText()));
+                        JButton restore = findButton(main, "Ripristina");
+                        if (restore != null) {
+                            SwingUtilities.invokeAndWait(restore::doClick);
+                            Thread.sleep(200);
+                        }
+                        fire = findButtonByPrefix(main, "REGISTRA TUTTO");
+                        check("Ripristina puts the two unsent pairs back in the queue",
+                              fire != null && fire.getText().contains("(2)"));
+                        check("the pair cut at ENTER is listed to verify, not queued",
+                              rp != null && rowWith(rp, "QR-OLD-3", "DA VERIFICARE"));
+                        check("the offer goes away once answered", sp != null && sp.recoveryText() == null);
+                        SwingUtilities.invokeAndWait(() -> findButtonByPrefix(main, "Nuova sessione").doClick());
+                        Thread.sleep(200);
+                    }
                 }
             }
 
@@ -439,6 +458,23 @@ public final class StartupSmokeTest {
                 new File(home.toFile(), ".autofill_suite.properties"))) {
             p.store(out, "saved by StartupSmokeTest");
         }
+        // and the queue of the last session was still on disk: two pairs never
+        // sent, one cut between ENTER and its INVIATA line
+        app.core.ScanQueueStore q = app.core.ScanQueueStore.open(home.toFile(),
+            java.time.Clock.systemDefaultZone());
+        q.enqueue("QR-OLD-1", "LOT-91", "blocco");
+        q.enqueue("QR-OLD-2", "LOT-92", "blocco");
+        long cut = q.enqueue("QR-OLD-3", "LOT-93", "blocco").id;
+        q.sending(cut);
+        q.close();
+    }
+
+    private static boolean rowWith(ResultsPanel rp, String code, String word) {
+        RunTableModel m = rp.tableModel();
+        for (int i = 0; i < m.getRowCount(); i++) {
+            if (code.equals(m.getValueAt(i, 1)) && word.equals(m.getValueAt(i, 3))) return true;
+        }
+        return false;
     }
 
     /** Polls instead of sleeping: a loaded machine is slow, not broken. */

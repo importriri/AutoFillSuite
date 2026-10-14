@@ -134,6 +134,22 @@ Two practical rules:
 - **Pair not sent.** If a burst dies halfway, its table row turns
   **NON INVIATA** and the robot pauses: no pair disappears quietly.
 
+### 3.4 The queue is saved on disk
+
+Every pair entering the queue is written to disk **before** it shows in the
+table (`AutoFillSuite_coda.giornale` in the report folder). If you close the
+app with a full queue, or the power goes, the Scansione card shows **Coda
+ritrovata: N coppie non inviate** at the next start:
+
+- **Ripristina** puts them back in the same order, IN CODA, in the mode you
+  scanned them in. Nothing starts on its own: in **A blocco** press REGISTRA
+  TUTTO, in **Continuo** press RIPRENDI.
+- **Scarta** (asks first) starts with an empty queue. The old journal is not
+  deleted: it stays, renamed with the date.
+
+A pair whose ENTER was being pressed exactly when the PC went off comes back
+as **DA VERIFICARE**: it is not queued again, the first verification settles it.
+
 ## 4. STAMPA (print mode)
 
 On the portal, the quantity field does **not** print more labels — any value
@@ -206,6 +222,7 @@ STOP) and restores itself when the verification ends. Toggle it with the
 | Verification always red on the export step | Wrong **Cartella download**, or **Prefisso export** does not match the file names, or the site is slow: raise the timeout in Impostazioni > Verifica. |
 | Window opens off-screen after unplugging a monitor | It re-centers itself on launch. |
 | A run crashed before verifying | On the next launch the app offers **VERIFICA ORA** for the pending run. |
+| I closed the app with a full queue | Nothing is lost: reopen, **Ripristina** on the Scansione card, then REGISTRA TUTTO or RIPRENDI. |
 | «GIÀ FATTO» when opening a file | That file was registered already. If it really must be done again: **Registra comunque...** |
 | «FUORI ORDINE» / «VECCHIO» | The previous export of the same day is missing, or a newer one went first: register the files in order. |
 | «MODIFICATO» | The CSV was resaved outside Registro QR (Excel): ask for the original, or regenerate it in Registro QR (Storico). |

@@ -52,6 +52,7 @@ public final class PairBurstTest {
         grabAfterEnter_isSent_butStops();
         robotFailure_isFailed();
         robotFailureAfterEnter_stillCountsAsSent();
+        beforeEnter_runsLast_andAFailureMeansNoEnter();
         noGuard_neverStops();
 
         System.out.println();
@@ -113,6 +114,20 @@ public final class PairBurstTest {
         PairBurst.Outcome o = PairBurst.run(h, TARGET, HOME, "LBL001", "LOT", T, true, () -> noted[0] = true);
         check("a failure after ENTER counts the pair and stops the robot",
               o == PairBurst.Outcome.SENT_THEN_GRABBED && noted[0]);
+    }
+
+    private static void beforeEnter_runsLast_andAFailureMeansNoEnter() throws Exception {
+        FakeHands h = new FakeHands();
+        PairBurst.Outcome o = PairBurst.run(h, TARGET, HOME, "LBL001", "LOT", T, true,
+            () -> h.steps.add("about to send"), () -> h.steps.add("noted"));
+        check("the before-ENTER hook runs after the last check, right before ENTER",
+              o == PairBurst.Outcome.SENT
+              && h.steps.indexOf("about to send") == h.steps.indexOf("ENTER") - 1);
+        FakeHands h2 = new FakeHands();
+        PairBurst.Outcome o2 = PairBurst.run(h2, TARGET, HOME, "LBL001", "LOT", T, true,
+            () -> { throw new java.io.IOException("disk full"); }, null);
+        check("a pair that could not be recorded is never sent",
+              o2 == PairBurst.Outcome.FAILED && !h2.steps.contains("ENTER"));
     }
 
     private static void noGuard_neverStops() throws Exception {
