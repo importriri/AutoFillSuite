@@ -278,6 +278,9 @@ public final class StartupSmokeTest {
                           waitFor(() -> findButtonByPrefix(main, "Nuova sessione") != null,
                                   5000));
                     JButton newSession = findButtonByPrefix(main, "Nuova sessione");
+                    // with a pair in the queue it asks first: this run says yes
+                    ScanModePanel asking = findPanel(main, ScanModePanel.class);
+                    if (asking != null) asking.sessionConfirmer = m -> true;
                     if (newSession != null) {
                         SwingUtilities.invokeAndWait(newSession::doClick);
                         Thread.sleep(200);

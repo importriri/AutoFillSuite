@@ -99,6 +99,9 @@ public class ScanModePanel extends JPanel {
     private VerificationTask verifyTask = null;
     /** Answers the "already registered today" question; a test answers it. */
     java.util.function.Predicate<String> confirmer = this::askConfirm;
+    // "Nuova sessione" with work that would be thrown away (the tests answer)
+    java.util.function.Predicate<String> sessionConfirmer =
+        m -> SafeConfirm.ask(this, m, "Nuova sessione");
     private final ResultsPanel results;
     private final RunContext ctx;
 
@@ -1087,6 +1090,19 @@ public class ScanModePanel extends JPanel {
         if (burstBusy || verifying) {
             setState(ERROR, "Attendi la fine del ciclo in corso");
             return;
+        }
+        // one click next to Verifica must not throw away a queue or an
+        // unchecked trail: say what goes, and take No for an answer
+        if (!queue.isEmpty() || sinceVerify > 0) {
+            StringBuilder m = new StringBuilder("Iniziare una nuova sessione?\n");
+            if (!queue.isEmpty()) {
+                m.append("\n").append(queue.size()).append(" coppie in coda NON inviate verranno tolte")
+                 .append(" (il giornale resta salvato, rinominato con la data).");
+            }
+            if (sinceVerify > 0) {
+                m.append("\n").append(sinceVerify).append(" coppie inviate non sono ancora state verificate.");
+            }
+            if (!sessionConfirmer.test(m.toString())) return;
         }
         endBlock();
         try {
