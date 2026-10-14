@@ -438,6 +438,10 @@ public class MainWindow extends JFrame implements RunContext {
             setLocationByPlatform(true);
         }
         final Timer saver = new Timer(400, e -> {
+            // in HUD mode the window is the HUD at the bottom of the screen:
+            // the place to remember is the cockpit's, or the next start would
+            // open the whole cockpit at the bottom edge, mostly off screen
+            if (hudMode) return;
             cfg.set(SettingsManager.UI_WIN_X, getX());
             cfg.set(SettingsManager.UI_WIN_Y, getY());
             cfg.save();
