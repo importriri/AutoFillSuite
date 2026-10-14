@@ -60,6 +60,8 @@ public final class RangeModeTest {
         grabInTheFirstCycle_stopsBeforeEnter();
         grabAfterEnter_countsTheLabel_andStops();
         grabDuringALotFix_stopsBeforeEnter();
+        lotInTheLabelField_isAnInversion_swapFixesIt();
+        codeOfNoKnownShape_isRefused();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -134,6 +136,43 @@ public final class RangeModeTest {
         check("a lot correction stops before ENTER when the mouse moves", h.enters.isEmpty());
     }
 
+    // the lot scanned into Etichetta: confirmScan only checked the last three
+    // digits, so an 18-digit lot passed and the robot registered a range of
+    // LOTS as labels. the QR 1 / QR 2 patterns now guard the range as well
+    private static void lotInTheLabelField_isAnInversion_swapFixesIt() throws Exception {
+        SettingsManager cfg = SettingsManager.getInstance();
+        cfg.set(SettingsManager.SCAN_QR1_PATTERN, "[0-9]{6}\\.[0-9]{3}_.*");
+        cfg.set(SettingsManager.SCAN_QR2_PATTERN, "[0-9]{18}");
+        Hands h = new Hands();
+        RangeModePanel p = panel(h);
+        run(p, "900612202601310007", "209531.001_01-01_2612000231", 3);
+        check("a lot scanned into Etichetta never starts the robot", h.enters.isEmpty());
+        check("the banner names the inversion", p.bannerText().contains("invertit"));
+        SwingUtilities.invokeAndWait(() -> button(p, "Scambia").doClick());
+        check("Scambia trades Etichetta and Lotto",
+              "209531.001_01-01_2612000231".equals(fields(p).get(0).getText())
+              && "900612202601310007".equals(fields(p).get(1).getText()));
+        SwingUtilities.invokeAndWait(() -> button(p, "AVVIA").doClick());
+        waitIdle(p);
+        check("after the swap the range runs", h.enters.size() == 3
+              && "209531.001_01-01_2612000233".equals(h.enters.get(2)));
+        cfg.set(SettingsManager.SCAN_QR1_PATTERN, "");
+        cfg.set(SettingsManager.SCAN_QR2_PATTERN, "");
+    }
+
+    private static void codeOfNoKnownShape_isRefused() throws Exception {
+        SettingsManager cfg = SettingsManager.getInstance();
+        cfg.set(SettingsManager.SCAN_QR1_PATTERN, "[0-9]{6}\\.[0-9]{3}_.*");
+        cfg.set(SettingsManager.SCAN_QR2_PATTERN, "[0-9]{18}");
+        Hands h = new Hands();
+        RangeModePanel p = panel(h);
+        run(p, "BOH-001", "900612202601310007", 2);
+        check("a label of no known shape is refused", h.enters.isEmpty()
+              && p.bannerText().contains("Formato"));
+        cfg.set(SettingsManager.SCAN_QR1_PATTERN, "");
+        cfg.set(SettingsManager.SCAN_QR2_PATTERN, "");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     static List<JTextField> fields(Container root) {
@@ -158,7 +197,10 @@ public final class RangeModeTest {
 
     static JButton button(Container root, String text) {
         for (Component c : root.getComponents()) {
-            if (c instanceof JButton && text.equals(((JButton) c).getText())) return (JButton) c;
+            if (c instanceof JButton && (text.equals(((JButton) c).getText())
+                || (((JButton) c).getToolTipText() != null && ((JButton) c).getToolTipText().startsWith(text)))) {
+                return (JButton) c;
+            }
             if (c instanceof Container) {
                 JButton b = button((Container) c, text);
                 if (b != null) return b;

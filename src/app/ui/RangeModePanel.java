@@ -34,7 +34,7 @@ public class RangeModePanel extends JPanel {
     private final JTextField tfPrefix   = new JTextField();   // internal state
     private final JTextField tfStartSeq = new JTextField();   // internal state
     private JSpinner spCount;
-    private JButton btnConfirm, btnReset, btnStart, btnStop, btnVerify, btnNewSession;
+    private JButton btnConfirm, btnReset, btnSwap, btnStart, btnStop, btnVerify, btnNewSession;
     private JLabel banner;
     private JProgressBar status;
     private final ResultsPanel results;
@@ -83,8 +83,16 @@ public class RangeModePanel extends JPanel {
         y++; g.gridx = 0; g.gridy = y; g.weightx = 0;
         card.add(AppTheme.label("Lotto"), g);
         tfLot = AppTheme.field();
+        // the swap sits next to the lot, like QR 2 in the scan card
+        btnSwap = AppTheme.iconButton(
+            Icons.swap(AppTheme.ICON, AppTheme.SUBTEXT), "Scambia Etichetta e Lotto  (F2)");
+        btnSwap.setBorder(BorderFactory.createEmptyBorder(7, 11, 7, 11));
+        JPanel lotRow = new JPanel(new BorderLayout(6, 0));
+        lotRow.setOpaque(false);
+        lotRow.add(tfLot, BorderLayout.CENTER);
+        lotRow.add(btnSwap, BorderLayout.EAST);
         g.gridx = 1; g.weightx = 1.0;
-        card.add(tfLot, g);
+        card.add(lotRow, g);
 
         // quantità
         y++; g.gridx = 0; g.gridy = y; g.weightx = 0;
@@ -136,6 +144,13 @@ public class RangeModePanel extends JPanel {
         btnConfirm.addActionListener(e -> confirmScan());
         tfScan.addActionListener(e -> confirmScan());       // scanner sends ENTER
         btnReset.addActionListener(e -> resetFields());
+        btnSwap.addActionListener(e -> swapFields());
+        // F2 anywhere in the card — the scanner never sends it
+        getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+            .put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F2, 0), "swapRange");
+        getActionMap().put("swapRange", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) { swapFields(); }
+        });
         spCount.addChangeListener(e -> updatePreview());
         btnStart.addActionListener(e -> start());
         btnStop.addActionListener(e -> {
@@ -153,6 +168,19 @@ public class RangeModePanel extends JPanel {
 
     private void confirmScan() {
         String raw = tfScan.getText().trim();
+        // the lot scanned into Etichetta: only the configured patterns can tell
+        String p1 = cfg.get(SettingsManager.SCAN_QR1_PATTERN, "");
+        String p2 = cfg.get(SettingsManager.SCAN_QR2_PATTERN, "");
+        if (ScanGuard.inspect(raw, "", p1, "") == ScanGuard.MISMATCH
+                && ScanGuard.inspect("", raw, "", p2) == ScanGuard.OK
+                && !p2.trim().isEmpty()) {
+            Toolkit.getDefaultToolkit().beep();
+            state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Lotto in Etichetta: codici invertiti");
+            warn("Hai sparato il lotto in Etichetta: premi Scambia (F2)");
+            tfPrefix.setText("");
+            tfStartSeq.setText("");
+            return;
+        }
         if (raw.length() <= 3) { warn("Codice troppo corto."); return; }
         String seq = raw.substring(raw.length() - 3);
         for (int i = 0; i < seq.length(); i++) {
@@ -164,6 +192,16 @@ public class RangeModePanel extends JPanel {
         tfPrefix.setText(raw.substring(0, raw.length() - 3));
         tfStartSeq.setText(seq);
         updatePreview();
+    }
+
+    /** Etichetta and Lotto trade places, and the label is read again. */
+    private void swapFields() {
+        if (robotRunning) return;
+        String a = tfScan.getText();
+        tfScan.setText(tfLot.getText());
+        tfLot.setText(a);
+        state(AppTheme.SURFACE2, AppTheme.TEXT, "PRONTO — controlla e premi AVVIA");
+        confirmScan();
     }
 
     private void resetFields() {
@@ -203,6 +241,21 @@ public class RangeModePanel extends JPanel {
         if (codes == null) { warn("Spara un'etichetta valida prima."); return; }
         final String lot = tfLot.getText().trim();
         if (lot.isEmpty()) { warn("Inserisci il lotto."); return; }
+        // the same guard as the scan mode: Etichetta against QR 1, Lotto against QR 2
+        int advice = ScanGuard.inspect(tfScan.getText().trim(), lot,
+            cfg.get(SettingsManager.SCAN_QR1_PATTERN, ""), cfg.get(SettingsManager.SCAN_QR2_PATTERN, ""));
+        if (advice == ScanGuard.INVERTED) {
+            Toolkit.getDefaultToolkit().beep();
+            state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Codici invertiti: premi Scambia (F2)");
+            warn("Etichetta e Lotto sono al contrario");
+            return;
+        }
+        if (advice == ScanGuard.MISMATCH) {
+            Toolkit.getDefaultToolkit().beep();
+            state(AppTheme.RED, AppTheme.ON_ACCENT, "Formato non riconosciuto");
+            warn("Etichetta o Lotto non hanno la forma attesa: controlla i due codici");
+            return;
+        }
 
         int cx = cfg.getInt(SettingsManager.REG_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.REG_COORD_Y, -1);
@@ -403,6 +456,7 @@ public class RangeModePanel extends JPanel {
         btnVerify.setEnabled(!robotRunning && !verifying);
         btnConfirm.setEnabled(!robotRunning);
         btnReset.setEnabled(!robotRunning);
+        btnSwap.setEnabled(!robotRunning);
         tfScan.setEnabled(!robotRunning);
     }
 
@@ -540,6 +594,11 @@ public class RangeModePanel extends JPanel {
 
     private void logAppend(String block) {
         if (!log.append(block)) status.setString("Log non scrivibile: " + log.getFile());
+    }
+
+    /** What the banner says now (the tests read it). */
+    String bannerText() {
+        return banner.getText();
     }
 
     private void state(java.awt.Color bg, java.awt.Color fg, String text) {
