@@ -396,22 +396,29 @@ public class MainWindow extends JFrame implements RunContext {
             toFront();
             requestFocus();
             if (target == null || !target.isShowing()) return;
-            Point p = target.getLocationOnScreen();
-            int x = p.x + Math.min(15, target.getWidth() / 2);
-            int y = p.y + target.getHeight() / 2;
             target.requestFocusInWindow();
             // real OS click off the EDT: toFront alone loses to the foreground lock.
             // It is a click like any other: it waits for the robot gate, and
-            // gives up rather than land in the middle of someone else's work
+            // gives up rather than land in the middle of someone else's work.
+            // The point is read AFTER the wait: meanwhile the window may have
+            // become the HUD, and the old point would hit one of its buttons
             new Thread(() -> {
                 app.core.RobotGate.Lease lease = null;
                 try {
                     lease = app.core.RobotGate.acquire("ritorno all'app", 2000);
-                    if (lease != null) app.core.RobotEngine.getInstance().click(x, y);
+                    if (lease == null) return;
+                    final Point[] at = { null };
+                    SwingUtilities.invokeAndWait(() -> {
+                        if (hudMode || !target.isShowing()) return;
+                        Point p = target.getLocationOnScreen();
+                        at[0] = new Point(p.x + Math.min(15, target.getWidth() / 2),
+                                          p.y + target.getHeight() / 2);
+                    });
+                    if (at[0] != null) app.core.RobotEngine.getInstance().click(at[0].x, at[0].y);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                } catch (RuntimeException noRobot) {
-                    // no robot: the caret is already in the field
+                } catch (java.lang.reflect.InvocationTargetException | RuntimeException noRobot) {
+                    // no robot, or no answer: the caret is already in the field
                 } finally {
                     if (lease != null) lease.release();
                 }
