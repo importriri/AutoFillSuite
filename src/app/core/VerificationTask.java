@@ -111,6 +111,10 @@ public final class VerificationTask implements Runnable {
             }
         } catch (IOException e) {
             fail("Verifica fallita: " + e.getMessage());
+        } catch (RuntimeException e) {
+            // the robot gone at the Export click, a checker that broke: the
+            // mode must hear about it, or it stays "verifying" for good
+            fail("Verifica fallita: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             if (cancelled) {

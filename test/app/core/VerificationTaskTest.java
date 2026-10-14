@@ -33,12 +33,28 @@ public final class VerificationTaskTest {
             manualFallback_usesTheLastExport();
             manualFallback_emptyFolder_fails();
             cancel_stopsTheWaitCleanly();
+            robotGone_isAFailure_neverSilence();
         } finally {
             deleteTree(root);
         }
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
+    }
+
+    // only IOException and InterruptedException were caught: a robot gone at
+    // the Export click (IllegalStateException) ended the thread with no
+    // callback, and the mode stayed "verifying" for good
+    private static void robotGone_isAFailure_neverSilence() throws Exception {
+        Path dir = caseDir();
+        Capture cap;
+        try {
+            cap = run(dir, () -> { throw new IllegalStateException("Robot non disponibile"); }, 0, false, 300);
+        } catch (IllegalStateException neverFinished) {
+            cap = null;
+        }
+        check("a robot gone at the Export click ends as a failure the mode hears about",
+              cap != null && cap.failure != null && cap.failure.contains("Robot non disponibile"));
     }
 
     private static void cleanFirstTry() throws Exception {
