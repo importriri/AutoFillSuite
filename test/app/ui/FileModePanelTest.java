@@ -42,7 +42,8 @@ public final class FileModePanelTest {
         int pair, checks;
 
         @Override public void doubleClick(int x, int y) { pair++; checks = 0; pastes = 0; }
-        @Override public void click(int x, int y) { }
+        final List<Point> clicks = new ArrayList<>();
+        @Override public void click(int x, int y) { clicks.add(new Point(x, y)); }
         @Override public void pasteText(String t) {
             if (pastes++ == 0) label = t; else lot = t;
         }
@@ -88,6 +89,7 @@ public final class FileModePanelTest {
         grabAfterEnter_countsTheRow_andStops();
         robotBusyElsewhere_neverStarts();
         correctionByDoubleClick_keepsTheFileLot();
+        hudTakesOver_noClickWhereTheButtonWas();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -369,6 +371,36 @@ public final class FileModePanelTest {
               portal.stream().filter(e -> e.startsWith(label5 + "|")).allMatch(e -> e.endsWith("|" + lot5)));
     }
 
+    // the point to click back on the app was taken from AVVIA once, before the
+    // window shrank to the HUD at the bottom of the screen: every pair then
+    // ended with a real click where AVVIA used to be, on the portal page
+    private static void hudTakesOver_noClickWhereTheButtonWas() throws Exception {
+        portal.clear();
+        Hands h = new Hands();
+        final JFrame[] frame = new JFrame[1];
+        final FileModePanel[] p = new FileModePanel[1];
+        SettingsManager.getInstance().set(SettingsManager.REPORT_DIR, new File(home, "repHud").getPath());
+        new File(home, "repHud").mkdirs();
+        SwingUtilities.invokeAndWait(() -> {
+            frame[0] = new JFrame("cockpit");
+            p[0] = new FileModePanel(new ResultsPanel(() -> { }), new NoopRunContext() {
+                // the cockpit collapses into the HUD: the card is no longer on screen
+                @Override public void jobStarted(Runnable stopAction) { frame[0].setVisible(false); }
+            });
+            p[0].hands = h;
+            p[0].exportClick = FileModePanelTest::exportClick;
+            p[0].confirmer = m -> false;
+            frame[0].add(p[0]);
+            frame[0].pack();
+            frame[0].setVisible(true);
+        });
+        open(p[0], sevenRows("hud.csv", 3));
+        startAndWait(p[0]);
+        check("the HUD run registers the rows", portal.size() == 3);
+        check("no click back on a card that is not on screen", h.clicks.isEmpty());
+        SwingUtilities.invokeAndWait(() -> frame[0].dispose());
+    }
+
     static JButton lever(FileModePanel p) {
         return find(p, b -> b.getText() != null && (b.getText().startsWith("AVVIA")
             || b.getText().startsWith("PRE-VOLO") || b.getText().startsWith("Riprendi")
@@ -400,7 +432,7 @@ public final class FileModePanelTest {
         else      { failed++; System.out.println("  FAIL " + name); }
     }
 
-    private static final class NoopRunContext implements RunContext {
+    private static class NoopRunContext implements RunContext {
         @Override public String blockingCollision(Map<String, Point> targets) { return null; }
         @Override public void jobStarted(Runnable stopAction) { }
         @Override public void jobProgress(Color tone, String state, String number,

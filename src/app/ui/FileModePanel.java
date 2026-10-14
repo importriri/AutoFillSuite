@@ -490,7 +490,6 @@ public class FileModePanel extends JPanel {
 
         running = true;
         stopRequested = false;
-        appPoint = btnStart.isShowing() ? btnStart.getLocationOnScreen() : null;
         refresh(null);
         ctx.jobStarted(this::stop);
         Thread worker = new Thread(this::work, "file-worker");
@@ -556,8 +555,14 @@ public class FileModePanel extends JPanel {
             fixes.clear();
             for (Job j : todo) {
                 if (stopRequested) { stopWhy = "STOP"; return; }
+                // the window and the way back, asked again for every pair: once
+                // the HUD takes over, the card is off screen and there is no
+                // way back to click (the old point is now portal page)
                 final String[] blocked = { null };
-                SwingUtilities.invokeAndWait(() -> blocked[0] = ctx.blockingCollision(targets(cx, cy)));
+                SwingUtilities.invokeAndWait(() -> {
+                    blocked[0] = ctx.blockingCollision(targets(cx, cy));
+                    appPoint = btnStart.isShowing() ? btnStart.getLocationOnScreen() : null;
+                });
                 if (blocked[0] != null) { stopWhy = blocked[0]; return; }
                 Point back = appPoint;
                 final Job job = j;
