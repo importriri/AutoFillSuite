@@ -324,6 +324,11 @@ public class ResultsPanel extends JPanel {
         buttons(false, false);
     }
 
+    /** The table holds a scan session now (and not a range or a file). */
+    public boolean isScanSession() {
+        return "scansione".equals(runMode);
+    }
+
     // ── file session ("Da file") ───────────────────────────────────────────
 
     /**

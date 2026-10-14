@@ -29,6 +29,8 @@ public final class ScanSessionTest {
         cfg.save();
 
         newSession_withQueuedPairs_asksFirst();
+        scanAfterAnotherModesRun_opensItsOwnSection();
+        scanWhileAnotherModeWorks_isRefused();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -66,6 +68,40 @@ public final class ScanSessionTest {
         check("an empty session starts again without a question", asked.isEmpty());
     }
 
+    // the scan rows pointed into whatever run the table held: after a range,
+    // new scans were appended to the range's rows and its report section
+    private static void scanAfterAnotherModesRun_opensItsOwnSection() throws Exception {
+        final ResultsPanel[] rp = new ResultsPanel[1];
+        final ScanModePanel[] sp = new ScanModePanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            rp[0] = new ResultsPanel(() -> { });
+            sp[0] = new ScanModePanel(rp[0], new RangeModeTest.NoopRunContext());
+        });
+        scan(sp[0], "LBL899", "LOT-S");          // the scan session is open
+        clearQueue(sp[0]);                       // released, say: the queue is empty again
+        SwingUtilities.invokeAndWait(() -> {
+            rp[0].beginRun(1, "LOT-R");          // a range ran meanwhile
+            rp[0].addLiveRow("LBL900", 1);
+        });
+        scan(sp[0], "LBL901", "LOT-S");
+        check("a scan after a range opens a scan section: the range row goes to the archive",
+              rows(rp[0]) == 1 && "LBL901".equals(rp[0].tableModel().codeAt(rp[0].tableModel().dayOffset())));
+    }
+
+    private static void scanWhileAnotherModeWorks_isRefused() throws Exception {
+        final ResultsPanel[] rp = new ResultsPanel[1];
+        final ScanModePanel[] sp = new ScanModePanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            rp[0] = new ResultsPanel(() -> { });
+            sp[0] = new ScanModePanel(rp[0], new RangeModeTest.NoopRunContext() {
+                @Override public String busyElsewhere(Object self) { return "Da file al lavoro"; }
+            });
+        });
+        scan(sp[0], "LBL902", "LOT-S");
+        check("a scan while another mode works is refused, never queued", rows(rp[0]) == 0
+              && queued(sp[0]) == 0 && sp[0].bannerText().contains("Da file"));
+    }
+
     static void scan(ScanModePanel p, String q1, String q2) throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             List<JTextField> f = RangeModeTest.fields(p);
@@ -88,6 +124,12 @@ public final class ScanSessionTest {
         final int[] n = new int[1];
         SwingUtilities.invokeAndWait(() -> n[0] = r.tableModel().getRowCount());
         return n[0];
+    }
+
+    static void clearQueue(ScanModePanel p) throws Exception {
+        java.lang.reflect.Field f = ScanModePanel.class.getDeclaredField("queue");
+        f.setAccessible(true);
+        ((java.util.Collection<?>) f.get(p)).clear();
     }
 
     static int queued(ScanModePanel p) throws Exception {

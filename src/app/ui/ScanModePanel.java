@@ -384,6 +384,15 @@ public class ScanModePanel extends JPanel {
         String q2 = tfQr2.getText().trim();
         if (q1.isEmpty() || q2.isEmpty()) return;
 
+        // another mode owns the robot and the results table right now: a pair
+        // queued here would wait behind its job and point into its rows
+        String other = ctx.busyElsewhere(this);
+        if (other != null) {
+            app.core.Sounds.error();
+            setState(ERROR, "Coppia NON accodata: " + other);
+            return;
+        }
+
         // a missing Robot is NOT a reason to refuse a scan: the queue is the
         // safe place, and the burst holds the pair with a message until the
         // machine can type again. Refusing here would lose the piece instead.
@@ -445,7 +454,8 @@ public class ScanModePanel extends JPanel {
             setState(ERROR, "Coda non salvabile su disco: coppia NON accodata — " + storeError);
             return;
         }
-        if (!sessionStarted) { results.beginSession(); sessionStarted = true; }
+        // the table may hold another mode's run since: scan rows get a section of their own
+        if (!sessionStarted || !results.isScanSession()) { results.beginSession(); sessionStarted = true; }
         int row = results.addQueuedPair(q1, q2);
         queue.addLast(new Pair(q1, q2, row, item.id));
         tfQr1.setText("");
@@ -989,7 +999,8 @@ public class ScanModePanel extends JPanel {
             return;
         }
         boolean block = false;
-        if (!sessionStarted) { results.beginSession(); sessionStarted = true; }
+        // the table may hold another mode's run since: scan rows get a section of their own
+        if (!sessionStarted || !results.isScanSession()) { results.beginSession(); sessionStarted = true; }
         for (ScanQueueStore.Item it : unsure) {
             results.addFileRow(it.q1, it.q2, "DA VERIFICARE");
             session.put(it.q1, it.q2);

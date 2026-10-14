@@ -194,6 +194,9 @@ public class FileModePanel extends JPanel {
     /** Reads the file and runs every check that needs no portal. */
     void open(File f) {
         if (running) return;
+        // opening replaces the results table: never under another mode's job
+        String other = ctx.busyElsewhere(this);
+        if (other != null) { error("File non aperto: " + other); return; }
         file = f;
         jobs.clear();
         fixes.clear();

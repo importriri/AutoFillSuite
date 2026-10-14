@@ -91,6 +91,7 @@ public final class FileModePanelTest {
         correctionByDoubleClick_keepsTheFileLot();
         hudTakesOver_noClickWhereTheButtonWas();
         stoppedAfterTheLastRow_canStillBeClosed();
+        openWhileAnotherModeWorks_leavesTheTableAlone();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -435,6 +436,26 @@ public final class FileModePanelTest {
         check("a clean closing check completes the file", led.state(sha).completed);
         check("nothing was sent again", portal.size() == 4);
         check("the next export of that line is in order", led.orderProblem("L9", "2026-10-14", 2) == null);
+    }
+
+    // opening a file replaced the results table: scan pairs still queued kept
+    // row numbers into it, and REGISTRA TUTTO stamped INVIATA on file rows
+    private static void openWhileAnotherModeWorks_leavesTheTableAlone() throws Exception {
+        final ResultsPanel r = new ResultsPanel(() -> { });
+        final FileModePanel[] p = new FileModePanel[1];
+        SettingsManager.getInstance().set(SettingsManager.REPORT_DIR, new File(home, "repBusy").getPath());
+        new File(home, "repBusy").mkdirs();
+        SwingUtilities.invokeAndWait(() -> {
+            r.beginSession();
+            r.addQueuedPair("QR-Q", "LOT-Q");
+            p[0] = new FileModePanel(r, new NoopRunContext() {
+                @Override public String busyElsewhere(Object self) { return "Scansione — 1 coppie in coda"; }
+            });
+        });
+        open(p[0], sevenRows("occupato.csv", 3));
+        check("a file is not opened over another mode's work", r.tableModel().getRowCount() == 1
+              && "QR-Q".equals(r.tableModel().codeAt(r.tableModel().dayOffset()))
+              && p[0].bannerText().contains("Scansione"));
     }
 
     static JButton lever(FileModePanel p) {
