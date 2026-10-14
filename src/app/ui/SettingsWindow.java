@@ -53,6 +53,7 @@ public class SettingsWindow extends JDialog {
         tabs.addTab("Verifica",      page(buildVerify()));
         tabs.addTab("Stampa",        page(buildPrint()));
         tabs.addTab("A scansione",   page(buildDualScan()));
+        tabs.addTab("Da file",       page(buildFile()));
         tabs.addTab("Finestra",      page(buildWindow()));
         tabs.addTab("Storico",       page(buildHistory()));
         tabs.addTab("Manuale",       new ManualPane());
@@ -254,6 +255,27 @@ public class SettingsWindow extends JDialog {
         p.row(autoSwap, "spenta: l'app avvisa e aspetta che premi Scambia (F2)");
 
         p.hint("La coordinata Export CSV si imposta nel tab Verifica.");
+        return p.panel;
+    }
+
+    // ── tab: da file (CSV di Registro QR) ────────────────────────────────
+
+    private JPanel buildFile() {
+        Page p = new Page();
+        p.section("Pre-volo");
+        JCheckBox pre = check("Controlla il portale prima di inviare",
+            cfg.getBool(SettingsManager.FILE_PREFLIGHT, true));
+        pre.addActionListener(e -> save(SettingsManager.FILE_PREFLIGHT, pre.isSelected()));
+        p.row(pre, "un Export dal portale prima del primo click: salta le etichette che hanno "
+                 + "già quel lotto e si ferma se ne trova una registrata in un altro modo. "
+                 + "Sempre acceso per i file di riesportazione");
+        p.section("Blocchi");
+        JSpinner block = AppTheme.spinnerInt(cfg.getInt(SettingsManager.FILE_BLOCK_SIZE, 50), 1, 500);
+        block.addChangeListener(e -> save(SettingsManager.FILE_BLOCK_SIZE, block.getValue()));
+        p.spinRow("Coppie per blocco", block, "", "alla fine di ogni blocco la verifica sul portale "
+                + "controlla tutte le coppie inviate dal file; mai a metà blocco");
+        p.hint("Il robot usa la coordinata e i tempi del tab A scansione, e la coordinata "
+             + "Export CSV del tab Verifica.");
         return p.panel;
     }
 

@@ -61,8 +61,8 @@ public final class CsvImport {
         /** false when a configured QR pattern does not fit (see inspectShapes) */
         public final boolean inShape;
 
-        CsvRow(int n, String label, String lot, String ora, String mode, String tipo,
-               boolean modified, String lotBefore) {
+        public CsvRow(int n, String label, String lot, String ora, String mode, String tipo,
+                      boolean modified, String lotBefore) {
             this(n, label, lot, ora, mode, tipo, modified, lotBefore, true);
         }
 

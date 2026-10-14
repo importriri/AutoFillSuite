@@ -300,6 +300,51 @@ public class ResultsPanel extends JPanel {
         buttons(false, false);
     }
 
+    // ── file session ("Da file") ───────────────────────────────────────────
+
+    /**
+     * A session of its own for a Registro QR file: the queue editor stays OFF
+     * (the rows of a file are corrected in Registro QR, never here), and the
+     * report section says modalita=file with the file name as its lot.
+     */
+    public void beginFileSession(String fileName) {
+        queueEditMode = false;
+        refreshQueueActions();
+        flushJournal();
+        runStamp = nextRunStamp();
+        runDate  = today();
+        runMode  = "file";
+        runLot   = fileName;
+        reportWritten = false;
+        total = 0;
+        model.beginRun("");
+        setBanner(AppTheme.SURFACE2, AppTheme.TEXT, "FILE — " + fileName);
+        lblHint.setText("Le righe di un file si correggono in Registro QR");
+        lblFooter.setText("");
+        buttons(false, false);
+    }
+
+    /** One row of the file, with the word that says what will happen to it. */
+    public int addFileRow(String code, String lot, String outcome) {
+        int row = model.addRow(code, lot);
+        model.updateOutcome(row, outcome);
+        return row;
+    }
+
+    /** A phase word on a row (IN CODA, GIA' PRESENTE...), never a verdict color. */
+    public void setRowOutcome(int row, String outcome) {
+        model.updateOutcome(row, outcome);
+    }
+
+    /** The table model, for the modes' own checks and the tests. */
+    RunTableModel tableModel() {
+        return model;
+    }
+
+    public void fileBanner(Color bg, String text) {
+        setBanner(bg, AppTheme.ON_ACCENT, text);
+    }
+
     /** Fresh session by the operator's hand: table and state back to idle. */
     public void resetIdle() {
         queueEditMode = false;

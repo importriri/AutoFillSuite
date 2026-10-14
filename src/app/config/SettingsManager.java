@@ -148,4 +148,9 @@ public class SettingsManager {
     public static final String SCAN_QR1_PATTERN  = "scan.qr1Pattern";   // regex, "" = no check
     public static final String SCAN_QR2_PATTERN  = "scan.qr2Pattern";
     public static final String SCAN_AUTOSWAP     = "scan.autoSwap";     // fix inverted pairs alone
+
+    // Tab "Da file" — files exported by Registro QR (see docs/CSV-FORMAT.md)
+    public static final String FILE_LAST_DIR     = "file.lastDir";     // folder of the last CSV opened
+    public static final String FILE_PREFLIGHT    = "file.preflight";   // check the portal before sending
+    public static final String FILE_BLOCK_SIZE   = "file.blockSize";   // pairs per verified block
 }

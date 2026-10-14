@@ -40,6 +40,7 @@ java -cp out app.core.PreflightTest
 java -cp out app.ui.GlyphSafetyTest
 java -cp out app.ui.IconRenderTest
 java -cp out app.ui.RunTableModelTest
+java -cp out app.ui.FileModePanelTest
 java -cp out app.ui.ManualRenderTest
 java -cp out app.ui.SpinnerCommitTest
 java -cp out app.ui.ScanTabSupportTest

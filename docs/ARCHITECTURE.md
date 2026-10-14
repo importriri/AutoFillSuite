@@ -173,6 +173,61 @@ no pair may disappear between the queue and the portal in silence.
 a display not ready at startup used to leave the app silently unable to type
 for the rest of the day.
 
+## Files from Registro QR ("Da file")
+
+A second line with no portal PC scans its labels with Registro QR (repository
+ScanLedger) and exports CSV files. The two programs share no library: the
+contract is `docs/CSV-FORMAT.md` plus five sample files in `test/fixtures/`,
+identical byte for byte in both repositories (`test/fixtures/CHECKSUMS`, checked
+by `verify.sh`) and read by both test suites. `CsvImport` is a copy of
+ScanLedger's `CsvReader`: same code, same samples.
+
+Everything happens **before the robot's first click**:
+
+1. **Fingerprint and rows** (`CsvImport`): format 1, `#fine` with the right
+   count (else *truncated*, refused), SHA-256 of the content (else *modified*:
+   red, unlocked only by an explicit confirmation). Rows whose codes do not fit
+   the configured QR patterns are marked and never sent.
+2. **Two registers.** The verification log stays as it was. `ImportLedger`
+   (`AutoFillSuite_importazioni.txt`) records every import: `INIZIO`, every
+   `INVIATA` written **right after ENTER** (PairBurst's `AfterEnter` hook, before
+   anything else), `BLOCCO_VERIFICATO`, `INTERROTTO`, `COMPLETATO`. Appended and
+   forced; a line cut by a shutdown is ignored, never guessed. Writer and parser
+   are tested on a round trip.
+3. **The order.** The portal keeps the last registration of a label, so an old
+   file registered after a correction silently puts the wrong lot back. Export
+   `k` of a station's day goes only after `k-1` is completed and before any
+   later one: `ImportLedger.orderProblem`. Out of order is unlocked only by a
+   confirmation that says this.
+4. **The pre-flight** (`Preflight`, on by default, always on for
+   `riesportazione=1`): one Export from the portal, then
+   `RegistrationVerifier.lastLots` — the verifier's own parser, no second one —
+   and per row: the portal's last lot equals the file's: `GIA_PRESENTE`, skipped;
+   new and absent, or a correction whose `lotto_prima` is what the portal holds:
+   `DA_INVIARE`; anything else: `CONFLITTO`, everything stops and the operator
+   decides.
+
+Then the robot works in **blocks** (`file.blockSize`, default 50), with the
+same `PairBurst` as the scan mode, and after each block — never inside one — a
+verification of **every pair the file has on the portal so far** (a snapshot,
+like `verifySession`). A red block stops the run and gives the cockpit back.
+
+**Resume.** A file stopped by the fail-safe, STOP or a closed app is
+`INTERROTTO` in the register. Reopening it, or restarting the app (which loads
+it from AutoFillSuite's own copy in `importazioni/`), offers *Riprendi da n*.
+The pre-flight runs again first: it covers the one pair that may have been sent
+when the PC went off between ENTER and the `INVIATA` line.
+
+**The file session** has its own start in `ResultsPanel` (`beginFileSession`):
+the queue editor stays off — a file's rows are corrected in Registro QR — and
+the report section reads `modalita=file` with the file name.
+
+**Injection points**, the minimum the tests need: `PairBurst.Hands` (implemented
+by `RobotEngine`; tests pass fake hands that append to a fake portal), and in
+`FileModePanel` the `exportClick` runnable (a test writes the portal's CSV into
+the download folder, where the real `DownloadWatcher` picks it up) and the
+`confirmer` of the override questions.
+
 ## The design system (`AppTheme`)
 
 Hand-rolled because the Windows LAF sabotages the easy paths: with
@@ -271,11 +326,16 @@ A double-click re-registers a label: same lot re-sends it (the portal appends, s
 
 ## The test pyramid (zero frameworks)
 
-Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Eleven suites, each born from a real failure:
+Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite was born from a real failure:
 
 | Suite | What it pins down | The bug that created it |
 |---|---|---|
 | ScanGuardTest | inversion vs mismatch; fail-safe geometry | the lot scanned into QR 1; an unreadable pointer read as a movement |
+| PairBurstTest | the burst sequence, the mouse check between every step, ENTER as point of no return | — (extracted so three modes share one sequence) |
+| CsvImportTest | the five contract samples with their outcome; shapes marked, never dropped | a file resaved in Excel; a file cut in transit |
+| ImportLedgerTest | register round trip, resume point, a line cut in half, export order, own copy | an old file registered after a correction |
+| PreflightTest | already there / to send / conflict, by the portal's last lot | a correction already made by hand on the portal |
+| FileModePanelTest | the "Da file" card with a fake robot and portal: checks, overrides, conflict, blocks of 3 over 7 checked after 3, 6, 7, fail-safe before and after ENTER, resume | — (new mode) |
 | ManualRenderTest | the bundled manual loads and renders | — (new: the manual ships inside the JAR) |
 | RegistrationVerifierTest | the export↔run diff; the last registration wins | right then wrong lot painted green while the portal held the wrong one |
 | DownloadWatcherTest | fresh-file pickup, charsets | an ANSI export with accents |
@@ -283,7 +343,7 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Eleven suite
 | CoreExtrasTest | guard, report, history, log round-trip | writer and parser drifting apart |
 | GlyphSafetyTest | no emoji in UI strings | empty boxes on Windows |
 | IconRenderTest | icons as pixels, hub = hole | a black disc from AlphaComposite.Clear |
-| RunTableModelTest | uncovered rows never green; day-view index translation | a queued pair painted OK; a correction landing on history |
+| RunTableModelTest | uncovered rows never green (GIÀ PRESENTE included); day-view index translation | a queued pair painted OK; a correction landing on history |
 | SpinnerCommitTest | on-screen number = executed number | chose 20, printed 30 |
 | TextFitTest | overflow keeps the tail | unreadable final digits in the bar |
 | StartupSmokeTest (×2) | the real app under Xvfb: clipping on every card and tab, queue, banners, HUD, geometry | Windows-only clipping, lopsided stack |

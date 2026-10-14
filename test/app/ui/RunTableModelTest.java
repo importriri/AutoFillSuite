@@ -28,10 +28,31 @@ public final class RunTableModelTest {
         dayView_archivesRunsAndTranslatesIndexes();
         dayView_reportNeverReadsHistory();
         dayView_rollsOverAtMidnight();
+        alreadyPresent_isGreenOnlyWhenAVerificationCoversIt();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
+    }
+
+    // "Da file": the pre-flight skips a row the portal already holds and labels
+    // it GIÀ PRESENTE. That is the portal's word at pre-flight time, not a
+    // verdict: the row may turn green only when a verification covers it
+    private static void alreadyPresent_isGreenOnlyWhenAVerificationCoversIt() {
+        RunTableModel m = new RunTableModel();
+        m.beginRun("");
+        int a = m.addRow("LBL001", "LOT-A");
+        int b = m.addRow("LBL002", "LOT-B");
+        m.updateOutcome(a, "GIÀ PRESENTE");
+        m.updateOutcome(b, "GIÀ PRESENTE");
+        Map<String, Integer> counts = new java.util.HashMap<>();
+        counts.put("LBL001", 1);
+        m.applyResult(result(Arrays.<String>asList(), Arrays.<String>asList(),
+                             new java.util.HashMap<String, String>(), counts, 1));
+        check("a GIÀ PRESENTE row covered by the verification turns OK",
+              m.stateAt(a) == RunTableModel.OK);
+        check("a GIÀ PRESENTE row the verification did not cover is never green",
+              m.stateAt(b) == RunTableModel.PENDING && "GIÀ PRESENTE".equals(m.getValueAt(b, 3)));
     }
 
     private static VerificationResult result(List<String> missing, List<String> notReg,

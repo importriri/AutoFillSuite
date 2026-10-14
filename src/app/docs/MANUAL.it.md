@@ -211,3 +211,50 @@ tasto **HUD**.
 | Verifica sempre rossa sul passo export | **Cartella download** sbagliata, o **Prefisso export** che non combacia coi nomi file, o sito lento: alza il timeout in Impostazioni > Verifica. |
 | Finestra fuori schermo dopo aver staccato un monitor | Al riavvio si ricentra da sola. |
 | Un run è crashato prima della verifica | Al prossimo avvio l'app offre **VERIFICA ORA** per il run in sospeso. |
+| «GIÀ FATTO» aprendo un file | Quel file è già stato registrato. Se serve davvero rifarlo: **Registra comunque...** |
+| «FUORI ORDINE» / «VECCHIO» | Manca l'export precedente della stessa giornata, o ne è già passato uno più nuovo: registra i file in ordine. |
+| «MODIFICATO» | Il CSV è stato risalvato fuori da Registro QR (Excel): chiedi il file originale, o rigeneralo da Registro QR (Storico). |
+| «CONFLITTO» nel pre-volo | Sul portale c'è un altro lotto per quell'etichetta: controlla quale è giusto, correggi in Registro QR o sul portale, riapri il file. |
+
+## 8. REGISTRA · Da file (file di Registro QR)
+
+Una seconda linea senza portale spara le etichette con **Registro QR** e ne
+esporta un CSV (chiavetta o cartella di rete). Qui lo registri sul portale con
+il robot, a blocchi, con la stessa verifica di sempre.
+
+1. **Apri CSV...** e scegli il file `registro_<postazione>_<giornata>_<NN>.csv`.
+2. Leggi l'elenco di controllo. Ogni riga rossa ferma:
+   - **impronta e righe** — il file ha un'impronta in fondo. **MODIFICATO** vuol
+     dire che qualcuno l'ha aperto e risalvato (per esempio in Excel): i lotti
+     potrebbero non essere quelli sparati. **TRONCATO** vuol dire che è arrivato
+     a metà: fattelo rimandare, non si registra.
+   - **registro dei file** — **NUOVO**, **GIÀ FATTO** (registrato prima: rifarlo
+     sporca lo storico del portale) o **INTERROTTO** (si riprende da dove si era
+     fermato).
+   - **ordine** — gli export di una giornata vanno registrati in ordine: il 02
+     solo dopo l'01, mai l'01 dopo il 02. Un file vecchio registrato dopo una
+     correzione rimetterebbe il lotto sbagliato, in silenzio, perché sul portale
+     **vince l'ultima** registrazione.
+   - **forma dei codici** — le stesse regole QR 1 / QR 2 della Scansione. Le
+     righe fuori forma si vedono e **non** partono.
+   - **pre-volo sul portale** — prima del primo click il robot fa un Export dal
+     portale e guarda l'ultimo lotto di ogni etichetta: salta quelle che ci sono
+     già (**GIÀ PRESENTE**) e si ferma su un **CONFLITTO** (un'etichetta
+     registrata in un altro modo). Lì decidi tu, mai il programma.
+3. **MODIFICATO**, **GIÀ FATTO** e fuori ordine si sbloccano solo con
+   **Registra comunque...**, che spiega cosa rischi.
+4. **PRE-VOLO E AVVIA**: pre-volo, poi registrazione a blocchi (50 coppie per
+   blocco, da Impostazioni > Da file). Alla fine di ogni blocco la verifica
+   controlla tutte le coppie inviate dal file. Mai a metà blocco.
+
+Le righe del file **non** si correggono qui: si correggono in Registro QR, che
+le manda nel file successivo come **CORREZIONE**. Le correzioni partono come un
+reinvio con il lotto nuovo, la stessa cosa del doppio click sul lotto.
+
+**Se si ferma** (mouse mosso, STOP, app chiusa a metà): riapri lo stesso file,
+o riapri l'app — la carta mostra **FERMATO — alla riga n** e **Riprendi da n**.
+Prima di riprendere il pre-volo controlla di nuovo il portale: copre anche la
+coppia inviata un attimo prima che il PC si spegnesse.
+
+AutoFillSuite tiene una copia di ogni file importato nella cartella dei report
+(`importazioni/`): la chiavetta si può perdere dopo l'import.

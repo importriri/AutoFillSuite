@@ -107,9 +107,30 @@ public final class StartupSmokeTest {
         check("the range stack spans the card, not the field column",
               greet != null && greet.getParent() != null
               && greet.getWidth() > greet.getParent().getWidth() * 0.85);
-        check("registering has both ways: range and scan",
+        check("registering has three ways: range, scan and file",
               findButton(main, "Intervallo") != null
-           && findButton(main, "Scansione") != null);
+           && findButton(main, "Scansione") != null
+           && findButton(main, "Da file") != null);
+        JButton fromFile = findButton(main, "Da file");
+        if (fromFile != null) {
+            SwingUtilities.invokeAndWait(fromFile::doClick);
+            Thread.sleep(200);
+            check("the file card is not clipped (" + (saved ? "Latte" : "Mocha") + ")", nothingClipped(main));
+            check("the file card offers Apri CSV", findButtonByPrefix(main, "Apri CSV") != null);
+            check("the file card waits for a file", findLabelByPrefix(main, "Apri un CSV") != null);
+            // a loaded file shows five check rows: the card must still fit the column
+            FileModePanel fm = findPanel(main, FileModePanel.class);
+            if (fm != null) {
+                SwingUtilities.invokeAndWait(() ->
+                    fm.open(new File("test/fixtures/contratto-v1-manomesso.csv")));
+                Thread.sleep(200);
+                check("a loaded file with all its checks is not clipped either", nothingClipped(main));
+                check("the override is offered for a modified file",
+                      findButtonByPrefix(main, "Registra comunque") != null);
+            }
+            SwingUtilities.invokeAndWait(() -> findButton(main, "Intervallo").doClick());
+            Thread.sleep(150);
+        }
 
         // nothing may be cut off: a button the operator cannot reach is a bug,
         // and a card taller than its window silently swallows its own footer.
@@ -389,6 +410,7 @@ public final class StartupSmokeTest {
     private static void writeSavedSettings(Path home) throws Exception {
         Properties p = new Properties();
         p.setProperty("scan.batchMode", "true");      // the one that blew up
+        p.setProperty("ui.flavor", "latte");          // the walker runs in both themes
         p.setProperty("ui.resultsOpen", "false");     // results closed at exit
         p.setProperty("reg.coordX", "512");
         p.setProperty("reg.coordY", "384");

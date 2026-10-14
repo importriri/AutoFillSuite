@@ -35,6 +35,7 @@ public class MainWindow extends JFrame implements RunContext {
     private static final String CARD_RANGE = "range";
     private static final String CARD_SCAN  = "scan";
     private static final String CARD_PRINT = "print";
+    private static final String CARD_FILE  = "file";
 
     private final SettingsManager cfg = SettingsManager.getInstance();
 
@@ -42,6 +43,7 @@ public class MainWindow extends JFrame implements RunContext {
     private final RangeModePanel rangeMode;
     private final ScanModePanel  scanMode;
     private final PrintModePanel printMode;
+    private final FileModePanel  fileMode;
 
     private final JPanel cards = new JPanel(new CardLayout());
     private final JPanel views = new JPanel(new CardLayout());
@@ -64,23 +66,23 @@ public class MainWindow extends JFrame implements RunContext {
         rangeMode = new RangeModePanel(results, this);
         scanMode  = new ScanModePanel(results, this);
         printMode = new PrintModePanel(this);
+        fileMode  = new FileModePanel(results, this);
 
         cards.setBackground(AppTheme.BASE);
         cards.add(rangeMode, CARD_RANGE);
         cards.add(scanMode,  CARD_SCAN);
         cards.add(printMode, CARD_PRINT);
+        cards.add(fileMode,  CARD_FILE);
 
-        // sub-selector: two ways of doing the same job
-        subSelector = new Segmented(new String[] { "Intervallo", "Scansione" },
-                                    false, 0, idx -> showCard(idx == 0 ? CARD_RANGE : CARD_SCAN));
+        // sub-selector: three ways of doing the same job
+        subSelector = new Segmented(new String[] { "Intervallo", "Scansione", "Da file" },
+                                    false, 0, idx -> showCard(registerCard(idx)));
 
         // main selector: the machine's mode switch
         Segmented selector = new Segmented(new String[] { "REGISTRA", "STAMPA" }, true, 0, idx -> {
             boolean register = idx == 0;
             subSelector.setVisible(register);
-            showCard(register
-                ? (subSelector.getSelected() == 0 ? CARD_RANGE : CARD_SCAN)
-                : CARD_PRINT);
+            showCard(register ? registerCard(subSelector.getSelected()) : CARD_PRINT);
         });
 
         // one strip across the whole width: both columns then start at the same
@@ -148,6 +150,10 @@ public class MainWindow extends JFrame implements RunContext {
 
         // a run the app never got to verify is a run nobody checked: offer it now
         SwingUtilities.invokeLater(rangeMode::restorePendingRun);
+        // a file left half-registered is just as much a trail: load it, ready to resume
+        SwingUtilities.invokeLater(() -> {
+            if (fileMode.restoreInterrupted()) subSelector.select(2);
+        });
     }
 
     private JPanel buildHeader() {
@@ -188,6 +194,11 @@ public class MainWindow extends JFrame implements RunContext {
         header.add(name, BorderLayout.WEST);
         header.add(east, BorderLayout.EAST);
         return header;
+    }
+
+    /** The card of a REGISTRA sub-mode: the ONE place that maps the segments. */
+    private static String registerCard(int idx) {
+        return idx == 0 ? CARD_RANGE : idx == 1 ? CARD_SCAN : CARD_FILE;
     }
 
     private void showCard(String card) {

@@ -206,3 +206,50 @@ STOP) and restores itself when the verification ends. Toggle it with the
 | Verification always red on the export step | Wrong **Cartella download**, or **Prefisso export** does not match the file names, or the site is slow: raise the timeout in Impostazioni > Verifica. |
 | Window opens off-screen after unplugging a monitor | It re-centers itself on launch. |
 | A run crashed before verifying | On the next launch the app offers **VERIFICA ORA** for the pending run. |
+| «GIÀ FATTO» when opening a file | That file was registered already. If it really must be done again: **Registra comunque...** |
+| «FUORI ORDINE» / «VECCHIO» | The previous export of the same day is missing, or a newer one went first: register the files in order. |
+| «MODIFICATO» | The CSV was resaved outside Registro QR (Excel): ask for the original, or regenerate it in Registro QR (Storico). |
+| «CONFLITTO» in the pre-flight | The portal holds another lot for that label: check which is right, correct in Registro QR or on the portal, reopen the file. |
+
+## 8. REGISTRA · Da file (Registro QR files)
+
+A second line without a portal scans its labels with **Registro QR** and
+exports a CSV (USB stick or network folder). Here the robot registers it on
+the portal, in blocks, with the usual verification.
+
+1. **Apri CSV...** and pick `registro_<station>_<day>_<NN>.csv`.
+2. Read the checklist. Any red line stops:
+   - **impronta e righe** — the file carries a fingerprint. **MODIFICATO** means
+     someone opened and resaved it (Excel, say): the lots may not be the ones
+     scanned. **TRONCATO** means it arrived cut: get it sent again, it is not
+     registered.
+   - **registro dei file** — **NUOVO**, **GIÀ FATTO** (registered before: doing
+     it again dirties the portal history) or **INTERROTTO** (resumes where it
+     stopped).
+   - **ordine** — a day's exports are registered in order: 02 only after 01,
+     never 01 after 02. An old file registered after a correction would put the
+     wrong lot back, silently, because on the portal **the last registration
+     wins**.
+   - **forma dei codici** — the same QR 1 / QR 2 rules as Scansione. Rows out
+     of shape are shown and do **not** go.
+   - **pre-volo sul portale** — before the first click the robot exports from
+     the portal and reads the last lot of every label: it skips those already
+     there (**GIÀ PRESENTE**) and stops on a **CONFLITTO** (a label registered
+     another way). You decide there, never the program.
+3. **MODIFICATO**, **GIÀ FATTO** and out of order are unlocked only through
+   **Registra comunque...**, which explains what is at risk.
+4. **PRE-VOLO E AVVIA**: pre-flight, then registration in blocks (50 pairs per
+   block, Impostazioni > Da file). At the end of every block the verification
+   checks every pair sent from the file. Never mid-block.
+
+Rows of a file are **not** corrected here: they are corrected in Registro QR,
+which sends them in the next file as **CORREZIONE**. A correction goes out as a
+re-send with the new lot, like a double click on the lot.
+
+**If it stops** (mouse moved, STOP, app closed mid-run): reopen the same file,
+or the app — the card shows **FERMATO — alla riga n** and **Riprendi da n**.
+Before resuming the pre-flight checks the portal again: that also covers the
+pair sent a moment before the PC went off.
+
+AutoFillSuite keeps a copy of every imported file in the report folder
+(`importazioni/`): the stick may be lost after the import.

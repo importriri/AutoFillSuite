@@ -43,6 +43,13 @@ block mode, queued rows can be selected, edited or removed before
 Scanners configured with a TAB suffix are supported on QR 2 through the same
 acceptance path as ENTER. TAB on QR 1 and Shift+TAB keep normal focus traversal.
 
+### Files from a second line ("Da file")
+
+A line without a portal PC records its pairs with Registro QR and exports a
+CSV. This mode reads that file, checks its fingerprint, the order of the
+day's exports and the portal's current state, then registers it in verified
+blocks and can resume where it stopped.
+
 ### Printing helper
 
 Some portal print forms ignore their quantity field and produce one label per
