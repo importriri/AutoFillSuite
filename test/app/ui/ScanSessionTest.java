@@ -33,6 +33,7 @@ public final class ScanSessionTest {
         scanWhileAnotherModeWorks_isRefused();
         restore_keepsEveryPairOnDisk();
         sentNeverVerified_isNotForgotten();
+        verifyByHand_duringABlock_waitsForItsEnd();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -170,8 +171,52 @@ public final class ScanSessionTest {
         cfg.save();
     }
 
+    // Verifica pressed while a block was being released: the check's outcome
+    // ended the block (HUD back to the cockpit, STOP gone) while the rest of
+    // the block was still to be sent
+    private static void verifyByHand_duringABlock_waitsForItsEnd() throws Exception {
+        File dir = Files.createTempDirectory("afs-blockcheck").toFile();
+        SettingsManager cfg = SettingsManager.getInstance();
+        cfg.set(SettingsManager.REPORT_DIR, dir.getPath());
+        cfg.set(SettingsManager.SCAN_BATCH, true);
+        cfg.set(SettingsManager.SCAN_VERIFY_AUTO, false);
+        cfg.set(SettingsManager.REG_EXPORT_COORD_X, 5);
+        cfg.set(SettingsManager.REG_EXPORT_COORD_Y, 5);
+        cfg.set(SettingsManager.REG_DOWNLOAD_DIR, dir.getPath());
+        cfg.save();
+        final int[] endedEarly = { 0 };
+        final ScanModePanel[] sp = new ScanModePanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            sp[0] = new ScanModePanel(new ResultsPanel(() -> { }), new RangeModeTest.NoopRunContext() {
+                @Override public void jobFinished() {
+                    try { if (queued(sp[0]) > 0) endedEarly[0]++; } catch (Exception ignored) { }
+                }
+            });
+            sp[0].hands = new QuietHands() {
+                @Override public void pressEnter() { try { Thread.sleep(400); } catch (InterruptedException e) { } }
+            };
+        });
+        for (int i = 1; i <= 6; i++) scan(sp[0], "LBL6" + i, "LOT-B");
+        SwingUtilities.invokeAndWait(() -> {
+            for (JButton b : ResultsOwnershipTest.buttons(sp[0])) {
+                if (b.getText() != null && b.getText().startsWith("REGISTRA TUTTO")) b.doClick();
+            }
+        });
+        Thread.sleep(700);
+        SwingUtilities.invokeAndWait(() -> {
+            for (JButton b : ResultsOwnershipTest.buttons(sp[0])) {
+                if ("Verifica".equals(b.getText())) b.doClick();
+            }
+        });
+        long until = System.currentTimeMillis() + 15000;
+        while (queued(sp[0]) > 0 && System.currentTimeMillis() < until) Thread.sleep(100);
+        Thread.sleep(500);
+        check("a check by hand never ends a block that still has pairs to send", endedEarly[0] == 0);
+        check("the block went out whole", queued(sp[0]) == 0);
+    }
+
     /** Hands that type nothing: the pair counts as sent at once. */
-    static final class QuietHands implements app.core.PairBurst.Hands {
+    static class QuietHands implements app.core.PairBurst.Hands {
         @Override public void doubleClick(int x, int y) { }
         @Override public void click(int x, int y) { }
         @Override public void pasteText(String text) { }

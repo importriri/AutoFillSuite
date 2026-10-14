@@ -31,6 +31,7 @@ public final class RunTableModelTest {
         alreadyPresent_isGreenOnlyWhenAVerificationCoversIt();
         wrongLot_showsTheTail_andTheWholeLotOnHover();
         correctionNotYetSent_isNeverGreen_withTheNewLot();
+        aCheckStarting_keepsTheWordsOfRowsItCannotJudge();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -100,6 +101,30 @@ public final class RunTableModelTest {
             Arrays.asList("SerialNumber|ProductionLot", "LBL001|LOTA", "LBL001|LOTB"), expected);
         m.applyResult(after);
         check("once verified with its own lot, the row is green", m.stateAt(r) == RunTableModel.OK);
+    }
+
+    // "verifying" reset every row to a dash: a NON INVIATA row lost its red
+    // mark for good, and queued rows looked like rows waiting for a verdict
+    private static void aCheckStarting_keepsTheWordsOfRowsItCannotJudge() {
+        RunTableModel m = new RunTableModel();
+        m.beginRun("");
+        int failedRow = m.addRow("LBL001", "LOT-1");
+        m.markFailed(failedRow);
+        int queued = m.addRow("LBL002", "LOT-2");
+        m.updateOutcome(queued, "IN CODA");
+        int fix = m.addRow("LBL003", "LOT-3");
+        m.markSentNow(fix);
+        m.setLot(fix, "LOT-3B");
+        m.updateOutcome(fix, "CORREZIONE IN CODA");
+        int sent = m.addRow("LBL004", "LOT-4");
+        m.markSentNow(sent);
+        m.updateOutcome(sent, "INVIATA");
+        m.clearOutcome();
+        check("a row not sent keeps NON INVIATA and its red", "NON INVIATA".equals(m.getValueAt(failedRow, 3))
+              && m.stateAt(failedRow) == RunTableModel.FAILED);
+        check("a queued row keeps IN CODA", "IN CODA".equals(m.getValueAt(queued, 3)));
+        check("a queued correction keeps its word", "CORREZIONE IN CODA".equals(m.getValueAt(fix, 3)));
+        check("a sent row waits for the verdict", "—".equals(m.getValueAt(sent, 3)));
     }
 
     private static VerificationResult result(List<String> missing, List<String> notReg,

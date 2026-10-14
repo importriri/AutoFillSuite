@@ -205,7 +205,12 @@ public class RunTableModel extends AbstractTableModel {
     }
 
     public void clearOutcome() {
-        for (Row r : rows) { r.outcome = "—"; r.state = PENDING; r.tip = null; }
+        for (Row r : rows) {
+            // a row that never went out, or waits in the queue, keeps its word:
+            // a check cannot judge it, and NON INVIATA must stay red
+            if (r.state == FAILED || r.outcome.endsWith("IN CODA")) continue;
+            r.outcome = "—"; r.state = PENDING; r.tip = null;
+        }
         fireTableDataChanged();
     }
 

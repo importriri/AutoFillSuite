@@ -370,6 +370,11 @@ public class ScanModePanel extends JPanel {
         return true;
     }
 
+    /** A block still has pairs to send: a check that ends meanwhile must not end it. */
+    private boolean stillReleasing() {
+        return releasing && !queue.isEmpty();
+    }
+
     /** STOP, from the HUD. */
     private void stopBlock() {
         paused = true;
@@ -825,6 +830,12 @@ public class ScanModePanel extends JPanel {
      *  auto = full timeout. */
     private void verifySession(boolean manual) {
         if (verifying) return;
+        // a block being released is checked at its end (the check would end
+        // the block early: HUD gone, STOP gone, pairs still to send)
+        if (manual && releasing && !queue.isEmpty()) {
+            setState(WARN, "Verifica a fine blocco: " + queue.size() + " coppie ancora da inviare");
+            return;
+        }
         if (session.isEmpty()) { setState(ERROR, "Sessione vuota: spara almeno una coppia"); return; }
         String other = RobotGate.owner();
         if (other == null || SCAN.equals(other)) other = ctx.busyElsewhere(this);
@@ -907,21 +918,21 @@ public class ScanModePanel extends JPanel {
                                     r.getMatched() + " / " + snapshot.size(),
                                     "verificate", 100, false);
                 }
-                if (!endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
+                if (!stillReleasing() && !endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
             }
             @Override public void onFailure(String reason) {
                 verifying = false;
                 results.showFailure(reason);
                 setState(ERROR, "Verifica fallita — riprova col tasto Verifica");
                 log.append("ERRORE · dual-scan · " + reason);
-                if (!endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
+                if (!stillReleasing() && !endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
             }
             @Override public void onCancelled() {
                 verifying = false;
                 results.showCancelled();
                 refreshBanner();
                 log.append("ANNULLATA · dual-scan");
-                if (!endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
+                if (!stillReleasing() && !endBlock() && queue.isEmpty()) ctx.focusHome(tfQr1);
             }
         };
 
