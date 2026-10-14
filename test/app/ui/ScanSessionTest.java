@@ -31,6 +31,7 @@ public final class ScanSessionTest {
         newSession_withQueuedPairs_asksFirst();
         scanAfterAnotherModesRun_opensItsOwnSection();
         scanWhileAnotherModeWorks_isRefused();
+        restore_keepsEveryPairOnDisk();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -100,6 +101,34 @@ public final class ScanSessionTest {
         scan(sp[0], "LBL902", "LOT-S");
         check("a scan while another mode works is refused, never queued", rows(rp[0]) == 0
               && queued(sp[0]) == 0 && sp[0].bannerText().contains("Da file"));
+    }
+
+    // Ripristina emptied the journal first, then queued the pairs again one by
+    // one: a crash in between left them only in the renamed file, a failed
+    // write dropped the rest, and the pairs "to verify" were never written to
+    // the new journal, so a second crash before the check lost them for good
+    private static void restore_keepsEveryPairOnDisk() throws Exception {
+        File dir = Files.createTempDirectory("afs-restore").toFile();
+        SettingsManager.getInstance().set(SettingsManager.REPORT_DIR, dir.getPath());
+        app.core.ScanQueueStore left = app.core.ScanQueueStore.open(dir, java.time.Clock.systemDefaultZone());
+        left.enqueue("QR-1", "LOT-1", "blocco");
+        long cut = left.enqueue("QR-2", "LOT-2", "blocco").id;
+        left.enqueue("QR-3", "LOT-3", "blocco");
+        left.sending(cut);   // the PC went off at ENTER
+        left.close();
+
+        final ScanModePanel[] sp = new ScanModePanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            sp[0] = new ScanModePanel(new ResultsPanel(() -> { }), new RangeModeTest.NoopRunContext());
+            sp[0].restoreQueue();
+        });
+        check("Ripristina queues the two unsent pairs", queued(sp[0]) == 2);
+        // a second crash right now: what does the disk say?
+        app.core.ScanQueueStore disk = app.core.ScanQueueStore.open(dir, java.time.Clock.systemDefaultZone());
+        check("after Ripristina the disk still has the two queued pairs", disk.pending().size() == 2);
+        check("...and the pair to verify, still to verify", disk.unsure().size() == 1
+              && disk.unsure().get(0).id == cut);
+        disk.close();
     }
 
     static void scan(ScanModePanel p, String q1, String q2) throws Exception {

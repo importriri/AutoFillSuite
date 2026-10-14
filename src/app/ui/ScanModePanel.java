@@ -91,6 +91,8 @@ public class ScanModePanel extends JPanel {
     private volatile long fieldsBusyAt = 0;
     private volatile Point appPoint    = null;
     private boolean sessionStarted = false;
+    // pairs restored "DA VERIFICARE": IN_INVIO on disk until a verification covers them
+    private final List<Long> toSettle = new java.util.ArrayList<>();
     private boolean sticky = false;               // a message that must not be wiped
     private volatile boolean blockRunning = false;   // a released block owns the HUD
     private int blockDone = 0;
@@ -889,6 +891,7 @@ public class ScanModePanel extends JPanel {
             }
             @Override public void onOutcome(VerificationResult r, Path f, int attempts, boolean fresh) {
                 verifying = false;
+                settleRestored(snapshot);
                 String fn = f.getFileName().toString();
                 results.showOutcome(r, fn, attempts, fresh);
                 results.offerReport(r);
@@ -987,39 +990,28 @@ public class ScanModePanel extends JPanel {
 
     /**
      * Ripristina: the pairs go back in their order, IN CODA, in the mode they
-     * were scanned in — and nothing fires until the operator says so. They
-     * move into a fresh journal (the old one is renamed and kept). A pair whose
-     * ENTER may have gone is listed "DA VERIFICARE" and covered by the next
-     * verification, never queued again.
+     * were scanned in — and nothing fires until the operator says so. They are
+     * already in the journal with their ids: nothing is written, so nothing can
+     * fail half way or be lost by a crash in the middle (the journal used to
+     * be emptied first and the pairs queued again one by one). A pair whose
+     * ENTER may have gone is listed "DA VERIFICARE", stays IN_INVIO on disk
+     * until a verification covers it, and is never queued again.
      */
     void restoreQueue() {
         if (store == null) return;
         List<ScanQueueStore.Item> pending = foundPending, unsure = foundUnsure;
-        try {
-            store.newSession();
-        } catch (java.io.IOException ex) {
-            setState(ERROR, "Giornale della coda non ruotato: " + ex.getMessage());
-            return;
-        }
         boolean block = false;
-        // the table may hold another mode's run since: scan rows get a section of their own
         if (!sessionStarted || !results.isScanSession()) { results.beginSession(); sessionStarted = true; }
         for (ScanQueueStore.Item it : unsure) {
             results.addFileRow(it.q1, it.q2, "DA VERIFICARE");
             session.put(it.q1, it.q2);
+            toSettle.add(it.id);
             verifyDue = true;
         }
         for (ScanQueueStore.Item it : pending) {
             block |= "blocco".equals(it.mode);
-            ScanQueueStore.Item again;
-            try {
-                again = store.enqueue(it.q1, it.q2, it.mode);
-            } catch (java.io.IOException ex) {
-                setState(ERROR, "Disco non scrive: ripristino interrotto — " + ex.getMessage());
-                break;
-            }
             int row = results.addQueuedPair(it.q1, it.q2);
-            queue.addLast(new Pair(it.q1, it.q2, row, again.id));
+            queue.addLast(new Pair(it.q1, it.q2, row, it.id));
         }
         if (block && !batchMode) modeSelector.select(1);
         if (!batchMode) paused = true;   // continuo: never fire on its own after a restart
@@ -1030,6 +1022,21 @@ public class ScanModePanel extends JPanel {
         refreshBanner();
         updateFireButton();
         revalidate();
+    }
+
+    /** A verification covered the restored pairs "to verify": their doubt is over on disk too. */
+    private void settleRestored(Map<String, String> covered) {
+        if (store == null || toSettle.isEmpty()) return;
+        for (java.util.Iterator<Long> it = toSettle.iterator(); it.hasNext(); ) {
+            ScanQueueStore.Item item = store.item(it.next());
+            if (item == null || !covered.containsKey(item.q1)) continue;
+            try {
+                store.sent(item.id);
+                it.remove();
+            } catch (java.io.IOException ex) {
+                // stays IN_INVIO: it comes back to verify, which is safe
+            }
+        }
     }
 
     /** Scarta, after a confirmation: the old journal is renamed and kept, the queue starts empty. */
@@ -1107,14 +1114,15 @@ public class ScanModePanel extends JPanel {
         }
         // one click next to Verifica must not throw away a queue or an
         // unchecked trail: say what goes, and take No for an answer
-        if (!queue.isEmpty() || sinceVerify > 0) {
+        if (!queue.isEmpty() || sinceVerify > 0 || !toSettle.isEmpty()) {
             StringBuilder m = new StringBuilder("Iniziare una nuova sessione?\n");
             if (!queue.isEmpty()) {
                 m.append("\n").append(queue.size()).append(" coppie in coda NON inviate verranno tolte")
                  .append(" (il giornale resta salvato, rinominato con la data).");
             }
-            if (sinceVerify > 0) {
-                m.append("\n").append(sinceVerify).append(" coppie inviate non sono ancora state verificate.");
+            if (sinceVerify > 0 || !toSettle.isEmpty()) {
+                m.append("\n").append(sinceVerify + toSettle.size())
+                 .append(" coppie inviate non sono ancora state verificate.");
             }
             if (!sessionConfirmer.test(m.toString())) return;
         }
@@ -1127,6 +1135,7 @@ public class ScanModePanel extends JPanel {
         }
         queue.clear();
         session.clear();
+        toSettle.clear();
         sent = 0;
         blockDone = 0;
         sinceVerify = 0;
