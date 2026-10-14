@@ -106,7 +106,7 @@ public final class RegistrationVerifier {
             }
         }
         return new VerificationResult(missing, notRegistered, wrongLots, duplicates,
-                                      registrations, matched);
+                                      registrations, matched, expectedPairs);
     }
 
     // ── effective view ───────────────────────────────────────────────────────

@@ -428,23 +428,26 @@ public class RangeModePanel extends JPanel {
         new Thread(currentTask).start();
     }
 
-    /** One correction burst at Casella 1: code, TAB, new lot, TAB, ENTER. */
-    void fixOne(int row, String code, String newLot) {
+    /**
+     * One correction burst at Casella 1: code, TAB, new lot, TAB, ENTER.
+     * false when it cannot even start: the row goes back to the old lot.
+     */
+    boolean fixOne(int row, String code, String oldLot, String newLot) {
         if (robotRunning || verifying) {
             warn("Robot occupato — riprova a fine run");
-            return;
+            return false;
         }
         int cx = cfg.getInt(SettingsManager.REG_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.REG_COORD_Y, -1);
         if (cx < 0 || cy < 0) {
             warn("Memorizza «Casella 1» nelle Impostazioni.");
-            return;
+            return false;
         }
         Map<String, Point> targets = new LinkedHashMap<>();
         targets.put("Casella 1", new Point(cx, cy));
         String blocked = ctx.blockingCollision(targets);
-        if (blocked != null) { warn(blocked); return; }
-        if (!takeRobot()) return;
+        if (blocked != null) { warn(blocked); return false; }
+        if (!takeRobot()) return false;
 
         final int tKey  = (int) (cfg.getDouble(SettingsManager.REG_FIELD_DELAY, 0.3) * 1000);
         final int tPost = cfg.getInt(SettingsManager.REG_POST_ENTER, 500);
@@ -471,10 +474,12 @@ public class RangeModePanel extends JPanel {
                         case NOT_SENT:
                             app.core.Sounds.error();
                             status.setString("Mouse mosso: correzione di " + code + " NON inviata");
+                            results.correctionNotSent(row, oldLot, "Correzione NON inviata: " + code);
                             break;
                         default:
                             app.core.Sounds.error();
                             status.setString("Robot non disponibile: correzione NON inviata");
+                            results.correctionNotSent(row, oldLot, "Correzione NON inviata: " + code);
                     }
                 });
             } catch (InterruptedException ie) {
@@ -487,6 +492,7 @@ public class RangeModePanel extends JPanel {
                 });
             }
         }, "lot-fix").start();
+        return true;
     }
 
     /**
@@ -559,10 +565,6 @@ public class RangeModePanel extends JPanel {
                 Thread.currentThread().interrupt();
             }
         };
-        final RegistrationVerifier verifier = new RegistrationVerifier();
-        Function<List<String>, VerificationResult> checker =
-            lines -> verifier.verify(lines, codes, lot);
-
         final int total = codes.size();
         if (!takeRobot()) return;
         verifying = true;
@@ -570,6 +572,11 @@ public class RangeModePanel extends JPanel {
         results.setActions(() -> startVerification(true), this::cancelVerification);
         results.setLotFixer(this::fixOne);
         results.ensureRows(codes, lot);
+        // each label with the lot its row shows: a correction sent changed it,
+        // and checking the run's lot would call it LOTTO ERRATO forever
+        final Map<String, String> expected = results.expectedLots(codes, lot);
+        final RegistrationVerifier verifier = new RegistrationVerifier();
+        Function<List<String>, VerificationResult> checker = lines -> verifier.verify(lines, expected);
         results.showVerifying();
 
         verifyTask = new VerificationTask(exportClick, watcher, checker,

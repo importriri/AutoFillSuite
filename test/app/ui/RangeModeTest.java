@@ -65,6 +65,7 @@ public final class RangeModeTest {
         rangePast999_neverStarts();
         labelsRegisteredToday_needAConfirmation();
         robotBusyElsewhere_neverStarts();
+        lotFix_isWhatTheNextCheckExpects_orIsUndone();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -134,7 +135,7 @@ public final class RangeModeTest {
         h.enters.clear();
         h.checks = 0;
         h.grabAtCheck = 3;
-        SwingUtilities.invokeAndWait(() -> p.fixOne(0, "LBL001", "LOT-B"));
+        SwingUtilities.invokeAndWait(() -> p.fixOne(0, "LBL001", "LOT-A", "LOT-B"));
         waitIdle(p);
         check("a lot correction stops before ENTER when the mouse moves", h.enters.isEmpty());
     }
@@ -266,6 +267,50 @@ public final class RangeModeTest {
         });
         run(q[0], "LBL311", "LOT-G", 3);
         check("a range never starts between the pairs of another mode's job", h2.enters.isEmpty());
+    }
+
+    // a correction sent changed the row's lot, but the next range check still
+    // looked for the run's lot: LOTTO ERRATO forever. a correction that could
+    // not start (robot busy) or stopped before ENTER left the new lot on a
+    // row that still showed green, and the report wrote it as sent.
+    private static void lotFix_isWhatTheNextCheckExpects_orIsUndone() throws Exception {
+        Hands h = new Hands();
+        RangeModePanel p = panel(h);
+        run(p, "LBL401", "LOT-R", 3);
+        final ResultsPanel r = results(p);
+        SwingUtilities.invokeAndWait(() -> r.setLotFixer(p::fixOne));
+        java.util.List<String> codes = java.util.Arrays.asList("LBL401", "LBL402", "LBL403");
+
+        app.core.RobotGate.Lease other = app.core.RobotGate.tryAcquire("Da file");
+        SwingUtilities.invokeAndWait(() -> r.applyFix(1, "LOT-NEW"));
+        other.release();
+        check("a correction that cannot start leaves the row on the old lot",
+              "LOT-R".equals(r.tableModel().lotAt(1)));
+
+        h.checks = 0;
+        h.grabAtCheck = 2;   // the operator takes the mouse before ENTER
+        SwingUtilities.invokeAndWait(() -> r.applyFix(1, "LOT-NEW"));
+        waitIdle(p);
+        check("a correction stopped before ENTER goes back to the old lot",
+              "LOT-R".equals(r.tableModel().lotAt(1))
+              && "CORREZIONE NON INVIATA".equals(r.tableModel().getValueAt(1, 3)));
+
+        h.grabAtCheck = -1;
+        h.enters.clear();
+        SwingUtilities.invokeAndWait(() -> r.applyFix(1, "LOT-NEW"));
+        waitIdle(p);
+        check("a correction sent shows the new lot", h.enters.size() == 1
+              && "LOT-NEW".equals(r.tableModel().lotAt(1)));
+        final java.util.List<java.util.Map<String, String>> want = new java.util.ArrayList<>();
+        SwingUtilities.invokeAndWait(() -> want.add(r.expectedLots(codes, "LOT-R")));
+        check("the next check looks for the new lot on that label only",
+              "LOT-NEW".equals(want.get(0).get("LBL402")) && "LOT-R".equals(want.get(0).get("LBL401")));
+    }
+
+    static ResultsPanel results(RangeModePanel p) throws Exception {
+        java.lang.reflect.Field f = RangeModePanel.class.getDeclaredField("results");
+        f.setAccessible(true);
+        return (ResultsPanel) f.get(p);
     }
 
     static void check(String name, boolean cond) {

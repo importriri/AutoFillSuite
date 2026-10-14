@@ -142,6 +142,13 @@ public class RunTableModel extends AbstractTableModel {
 
     public String lotAt(int row) { return at(row).lot; }
 
+    /** The lot a label shows in the current run (the last row of it), or null. */
+    public String runLotOf(String code) {
+        String lot = null;
+        for (Row r : rows) if (r.code.equals(code)) lot = r.lot;
+        return lot;
+    }
+
     /** Labels sent today in this app (archive and current run): label -> {lot, time}. */
     public Map<String, String[]> sentToday() {
         Map<String, String[]> out = new java.util.LinkedHashMap<>();
@@ -197,6 +204,9 @@ public class RunTableModel extends AbstractTableModel {
         // count, it is not a problem — hence "OK ×N", never a "duplicate" warning
         Map<String, Integer> counts = res.getRegistrationCounts();
         for (Row r : rows) {
+            // the check looked for another lot than the one this row shows
+            // (a correction still queued): it says nothing about this row
+            if (!res.covers(r.code, r.lot))     continue;
             if (missing.contains(r.code))       { r.state = MISSING; r.outcome = "MANCANTE"; }
             else if (notReg.contains(r.code))   { r.state = NOT_REG; r.outcome = "NON REGISTRATA"; }
             else if (wrong.containsKey(r.code)) {

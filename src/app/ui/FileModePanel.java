@@ -813,7 +813,7 @@ public class FileModePanel extends JPanel {
     }
 
     /** Double click on a lot: register that label again with the burst, as a fix. */
-    private void fixLot(int row, String code, String newLot) {
+    private boolean fixLot(int row, String code, String oldLot, String newLot) {
         for (Job j : jobs) {
             if (j.tableRow == row) {
                 CsvImport.CsvRow r = j.row;
@@ -824,6 +824,7 @@ public class FileModePanel extends JPanel {
         }
         refresh(null);
         state(AppTheme.PEACH, AppTheme.ON_ACCENT, "Correzione in coda — premi AVVIA");
+        return true;
     }
 
     // ── restart ──────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ public final class RunTableModelTest {
         dayView_rollsOverAtMidnight();
         alreadyPresent_isGreenOnlyWhenAVerificationCoversIt();
         wrongLot_showsTheTail_andTheWholeLotOnHover();
+        correctionNotYetSent_isNeverGreen_withTheNewLot();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -72,6 +73,33 @@ public final class RunTableModelTest {
         check("a long wrong lot keeps its TAIL in the cell",
               shown.startsWith("LOTTO ERRATO: ...") && shown.endsWith("2023/12/11;A"));
         check("the whole lot is in the cell's tooltip", m.tipAt(r).contains(free));
+    }
+
+    // a lot corrected by double click shows the NEW lot at once, while the
+    // correction still waits in the queue. a verification of the session
+    // (which expects the OLD lot, the one sent) painted that row green with
+    // the new lot, and the report wrote it OK: the portal held the old one.
+    private static void correctionNotYetSent_isNeverGreen_withTheNewLot() {
+        RunTableModel m = new RunTableModel();
+        m.beginRun("");
+        int r = m.addRow("LBL001", "LOTB");      // the row as the operator sees it now
+        m.markSentNow(r);
+        Map<String, String> expected = new LinkedHashMap<>();
+        expected.put("LBL001", "LOTA");          // what was sent, what the check looked for
+        VerificationResult res = new app.core.RegistrationVerifier().verify(
+            Arrays.asList("SerialNumber|ProductionLot", "LBL001|LOTA"), expected);
+        m.applyResult(res);
+        check("a row showing another lot than the one verified is not painted",
+              m.stateAt(r) != RunTableModel.OK);
+        String csv = app.core.RunReport.toCsv(m.reportEntries(), res);
+        String line = "";
+        for (String l : csv.split("\n")) if (l.startsWith("LBL001;")) line = l;
+        check("...and the report does not write it OK", line.startsWith("LBL001;LOTB;") && !line.contains(";OK;"));
+        expected.put("LBL001", "LOTB");          // the correction went out, the check looks for it
+        VerificationResult after = new app.core.RegistrationVerifier().verify(
+            Arrays.asList("SerialNumber|ProductionLot", "LBL001|LOTA", "LBL001|LOTB"), expected);
+        m.applyResult(after);
+        check("once verified with its own lot, the row is green", m.stateAt(r) == RunTableModel.OK);
     }
 
     private static VerificationResult result(List<String> missing, List<String> notReg,

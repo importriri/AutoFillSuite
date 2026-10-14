@@ -850,11 +850,11 @@ public class ScanModePanel extends JPanel {
         verifying = true;
         setState(VERIFY, "Verifica sessione in corso...");
         results.setActions(() -> verifySession(true), this::cancelVerify);
-        results.setLotFixer((row, code, newLot) -> {
+        results.setLotFixer((row, code, oldLot, newLot) -> {
             ScanQueueStore.Item fix = journalEnqueue(code, newLot);
             if (fix == null) {
                 setState(ERROR, "Coda non salvabile su disco: correzione NON accodata — " + storeError);
-                return;
+                return false;
             }
             queue.addLast(new Pair(code, newLot, row, fix.id));
             refreshBanner();
@@ -862,6 +862,7 @@ public class ScanModePanel extends JPanel {
             if (batchMode && !releasing) {
                 setState(READY, "Correzione in coda — premi REGISTRA TUTTO");
             }
+            return true;
         });
         results.setSessionTotal(snapshot.size());
         results.showVerifying();

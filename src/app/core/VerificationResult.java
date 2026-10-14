@@ -20,10 +20,20 @@ public final class VerificationResult {
     private final List<String> duplicates;     // registered more than once (kept for the log)
     private final Map<String, Integer> registrations;  // label -> rows with the expected lot
     private final int matched;                 // lined up cleanly
+    private final Map<String, String> expected;   // label -> the lot the check looked for
 
     public VerificationResult(List<String> missing, List<String> notRegistered,
                               Map<String, String> wrongLots, List<String> duplicates,
                               Map<String, Integer> registrations, int matched) {
+        this(missing, notRegistered, wrongLots, duplicates, registrations, matched,
+             Collections.<String, String>emptyMap());
+    }
+
+    public VerificationResult(List<String> missing, List<String> notRegistered,
+                              Map<String, String> wrongLots, List<String> duplicates,
+                              Map<String, Integer> registrations, int matched,
+                              Map<String, String> expected) {
+        this.expected      = Collections.unmodifiableMap(new java.util.LinkedHashMap<>(expected));
         this.missing       = Collections.unmodifiableList(missing);
         this.notRegistered = Collections.unmodifiableList(notRegistered);
         this.wrongLots     = Collections.unmodifiableMap(wrongLots);
@@ -33,6 +43,24 @@ public final class VerificationResult {
     }
 
     public List<String> getMissing()       { return missing; }
+
+    /**
+     * Whether this verification speaks for a row showing {@code lot}: it looked
+     * for that label WITH that lot. A lot corrected by hand shows at once, while
+     * the correction still waits to be sent; a check made for the old lot must
+     * not paint the new one green. A result built without the expected lots
+     * (older callers) covers every lot.
+     */
+    public boolean covers(String code, String lot) {
+        if (expected.isEmpty()) return true;
+        String want = expected.get(code);
+        return want != null && want.trim().equals(lot == null ? "" : lot.trim());
+    }
+
+    /** The lot the check looked for, or null when it did not look for this label. */
+    public String expectedLot(String code) {
+        return expected.get(code);
+    }
     public List<String> getNotRegistered() { return notRegistered; }
     public List<String> getDuplicates()    { return duplicates; }
     public Map<String, Integer> getRegistrationCounts() { return registrations; }

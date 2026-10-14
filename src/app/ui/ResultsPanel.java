@@ -48,7 +48,11 @@ public class ResultsPanel extends JPanel {
     private boolean lastFresh = true;
 
     /** Installed by the mode panel: re-registers ONE label with a new lot. */
-    public interface LotFixer { void fix(int row, String code, String newLot); }
+    /**
+     * The mode that owns the rows takes a correction in charge. false = it could
+     * not (robot busy, no coordinate, disk): the row goes back to the old lot.
+     */
+    public interface LotFixer { boolean fix(int row, String code, String oldLot, String newLot); }
     private LotFixer lotFixer;
     public void setLotFixer(LotFixer f) { lotFixer = f; }
 
@@ -579,6 +583,16 @@ public class ResultsPanel extends JPanel {
             "Lotto per " + code + " (OK = registra di nuovo):", "Registra di nuovo",
             JOptionPane.PLAIN_MESSAGE, null, null, cur);
         if (input == null) return;              // Cancel: nothing happens
+        applyFix(row, input);
+    }
+
+    /** The answer of the "Registra di nuovo" box, for a visual row (the tests call it). */
+    void applyFix(int row, String input) {
+        int runRow = row - model.dayOffset();
+        if (runRow < 0 || lotFixer == null) return;
+        String code = model.codeAt(row);
+        String cur  = model.lotAt(row);
+        String before = String.valueOf(model.getValueAt(row, 3));
         String lot = input.trim();
         if (lot.isEmpty()) return;              // empty lot is never valid
         if (lot.equals(cur)) {
@@ -591,8 +605,36 @@ public class ResultsPanel extends JPanel {
             model.updateOutcome(runRow, "CORREZIONE IN CODA");
             lblHint.setText("Correzione: " + code + " -> " + lot);
         }
-        lotFixer.fix(runRow, code, lot);
+        if (!lotFixer.fix(runRow, code, cur, lot)) {
+            // nothing was taken in charge: the row shows what the portal has
+            model.setLot(runRow, cur);
+            model.updateOutcome(runRow, before);
+            lblHint.setText("Correzione non accodata: " + code);
+            return;
+        }
         touchJournal();
+    }
+
+    /** A correction that never reached ENTER: the row goes back to the lot sent before. */
+    public void correctionNotSent(int runRow, String oldLot, String why) {
+        model.setLot(runRow, oldLot);
+        model.updateOutcome(runRow, "CORREZIONE NON INVIATA");
+        lblHint.setText(why);
+        touchJournal();
+    }
+
+    /**
+     * What a verification of these labels should look for: the lot each one
+     * shows in the current run (a correction sent changed it), the run's lot
+     * for a label not in the table.
+     */
+    public Map<String, String> expectedLots(List<String> codes, String lot) {
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (String c : codes) {
+            String shown = model.runLotOf(c);
+            out.put(c, shown == null ? lot : shown);
+        }
+        return out;
     }
 
     /**

@@ -52,7 +52,12 @@ public final class RunReport {
         for (Entry e : entries) {
             String esito, dettaglio = "";
             Integer n = counts.get(e.code);
-            if (missing.contains(e.code)) {
+            if (r.expectedLot(e.code) != null && !r.covers(e.code, e.lot)) {
+                // checked with another lot (a correction not sent yet): no verdict
+                n = null;
+                esito = e.sentAt == null ? "NON INVIATA" : "NON VERIFICATA";
+                dettaglio = "verificata con il lotto " + r.expectedLot(e.code);
+            } else if (missing.contains(e.code)) {
                 esito = "MANCANTE"; dettaglio = "non presente nel CSV";
             } else if (notReg.contains(e.code)) {
                 esito = "NON REGISTRATA"; dettaglio = "solo stampa, mai registrata";
