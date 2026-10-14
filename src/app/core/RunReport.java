@@ -93,6 +93,51 @@ public final class RunReport {
         return out;
     }
 
+    /**
+     * Labels SENT today according to the day's report, with the lot and the
+     * send time of their last sending: rows queued or never sent do not count.
+     * label -> {lot, time}.
+     */
+    public static Map<String, String[]> sentToday(List<String> reportLines) {
+        Map<String, String[]> out = new java.util.LinkedHashMap<>();
+        for (String line : reportLines) {
+            if (line.isEmpty() || line.startsWith("RUN;") || line.startsWith("Etichetta;")
+                || line.startsWith("TUTTO OK;") || line.startsWith("PROBLEMI;")
+                || line.startsWith("Verifica;") || line.startsWith("Aggiornato;")) continue;
+            List<String> f = splitCsv(line);
+            if (f.size() < 4) continue;
+            String sentAt = f.get(2), esito = f.get(3);
+            if ("-".equals(sentAt) || sentAt.isEmpty() || "IN CODA".equals(esito)
+                || "NON INVIATA".equals(esito)) continue;
+            out.put(f.get(0), new String[] { f.get(1), sentAt });
+        }
+        return out;
+    }
+
+    /** One report line into fields, honouring the quotes esc() writes. */
+    static List<String> splitCsv(String line) {
+        List<String> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (quoted) {
+                if (c == '"' && i + 1 < line.length() && line.charAt(i + 1) == '"') { cur.append('"'); i++; }
+                else if (c == '"') quoted = false;
+                else cur.append(c);
+            } else if (c == '"' && cur.length() == 0) {
+                quoted = true;
+            } else if (c == ';') {
+                out.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(c);
+            }
+        }
+        out.add(cur.toString());
+        return out;
+    }
+
     // ── daily file: one CSV per day, one section per run ────────────────────
 
     public static String sectionHead(String date, String time, String lot, String mode) {

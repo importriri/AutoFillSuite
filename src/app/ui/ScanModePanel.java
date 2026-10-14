@@ -96,6 +96,8 @@ public class ScanModePanel extends JPanel {
     private int sent = 0;
 
     private VerificationTask verifyTask = null;
+    /** Answers the "already registered today" question; a test answers it. */
+    java.util.function.Predicate<String> confirmer = this::askConfirm;
     private final ResultsPanel results;
     private final RunContext ctx;
 
@@ -403,6 +405,21 @@ public class ScanModePanel extends JPanel {
             return;
         }
 
+        // 2b. the same label registered EARLIER TODAY (another session, another
+        // start): the portal keeps the last lot, so another lot is a correction
+        String sameLotNote = null;
+        String[] before = results.registeredToday().get(q1);
+        if (before != null) {
+            if (before[0].equals(q2)) {
+                sameLotNote = "Già registrata oggi alle " + before[1] + " con lo stesso lotto: reinvio";
+            } else if (!confirmer.test(q1 + " è già stata registrata oggi alle " + before[1]
+                    + " con il lotto " + before[0] + ".\n\nÈ una correzione: sul portale vincerà "
+                    + "questo lotto (" + q2 + ").\n\nRegistrare comunque?")) {
+                setState(WARN, "Correzione non accodata: " + q1);
+                return;
+            }
+        }
+
         // 3. the burst runs on a worker: check the window BEFORE the pair is
         // queued, while we are still on the EDT and can move the window if we must
         int cx = cfg.getInt(SettingsManager.SCAN_COORD_X, -1);
@@ -429,6 +446,7 @@ public class ScanModePanel extends JPanel {
         refreshBanner();
         updateFireButton();
         if (corrected) setState(WARN, "Coppia invertita, corretta da sola: " + q1);
+        else if (sameLotNote != null) setState(WARN, sameLotNote);
     }
 
     /** Same label already sent in this session, or already waiting in the queue. */
@@ -991,6 +1009,17 @@ public class ScanModePanel extends JPanel {
         foundUnsure = new java.util.ArrayList<>();
         recoverBox.setVisible(false);
         revalidate();
+    }
+
+    private boolean askConfirm(String message) {
+        int c = JOptionPane.showConfirmDialog(this, message, "Già registrata oggi",
+            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        return c == JOptionPane.YES_OPTION;
+    }
+
+    /** What the banner says now (the tests read it). */
+    String bannerText() {
+        return banner.getText();
     }
 
     /** Why closing now would cut something short, or null. */

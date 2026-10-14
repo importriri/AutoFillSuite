@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The right half of the cockpit: results always in sight, never a window to
@@ -334,6 +335,25 @@ public class ResultsPanel extends JPanel {
     /** A phase word on a row (IN CODA, GIA' PRESENTE...), never a verdict color. */
     public void setRowOutcome(int row, String outcome) {
         model.updateOutcome(row, outcome);
+    }
+
+    /**
+     * Every label sent today, with its lot and time: the day's report file
+     * (earlier runs, earlier app starts) and this app's own table on top.
+     */
+    public Map<String, String[]> registeredToday() {
+        Map<String, String[]> out = new java.util.LinkedHashMap<>();
+        File rep = new File(new File(cfg.get(SettingsManager.REPORT_DIR, System.getProperty("user.home"))),
+                            "AutoFillSuite_report_" + today() + ".csv");
+        if (rep.exists()) {
+            try {
+                out.putAll(RunReport.sentToday(Files.readAllLines(rep.toPath(), StandardCharsets.UTF_8)));
+            } catch (IOException e) {
+                System.err.println("[results] report not readable: " + e.getMessage());
+            }
+        }
+        out.putAll(model.sentToday());
+        return out;
     }
 
     /** The table model, for the modes' own checks and the tests. */

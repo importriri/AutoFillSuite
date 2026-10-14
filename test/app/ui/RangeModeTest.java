@@ -63,6 +63,7 @@ public final class RangeModeTest {
         lotInTheLabelField_isAnInversion_swapFixesIt();
         codeOfNoKnownShape_isRefused();
         rangePast999_neverStarts();
+        labelsRegisteredToday_needAConfirmation();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -180,6 +181,26 @@ public final class RangeModeTest {
         run(p, "LBL998", "LOT-A", 5);
         check("a range past 999 never starts the robot", h.enters.isEmpty());
         check("and says why", p.statusText().contains("supera 999"));
+    }
+
+    private static void labelsRegisteredToday_needAConfirmation() throws Exception {
+        java.nio.file.Files.write(new File(System.getProperty("user.home"),
+            "AutoFillSuite_report_" + java.time.LocalDate.now() + ".csv").toPath(),
+            ("RUN;" + java.time.LocalDate.now() + ";07:00:00;lotto=LOT-A;modalita=intervallo\n"
+             + "Etichetta;Lotto;OraInvio;Esito;Registrazioni;Dettaglio\n"
+             + "LBL502;LOT-A;07:00:09;OK;1;\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Hands h = new Hands();
+        RangeModePanel p = panel(h);
+        final List<String> asked = new ArrayList<>();
+        p.confirmer = m -> { asked.add(m); return false; };
+        run(p, "LBL501", "LOT-B", 3);
+        check("a range over a label registered today with another lot asks first, with the list",
+              asked.size() == 1 && asked.get(0).contains("LBL502") && asked.get(0).contains("LOT-A"));
+        check("refused: the robot never starts", h.enters.isEmpty());
+        p.confirmer = m -> true;
+        SwingUtilities.invokeAndWait(() -> button(p, "AVVIA").doClick());
+        waitIdle(p);
+        check("confirmed: the range runs", h.enters.size() == 3);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

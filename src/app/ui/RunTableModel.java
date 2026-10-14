@@ -141,6 +141,15 @@ public class RunTableModel extends AbstractTableModel {
 
     public String lotAt(int row) { return at(row).lot; }
 
+    /** Labels sent today in this app (archive and current run): label -> {lot, time}. */
+    public Map<String, String[]> sentToday() {
+        Map<String, String[]> out = new java.util.LinkedHashMap<>();
+        if (!dayStamp.equals(today())) return out;
+        for (Row r : dayRows) if (r.sentAt != null) out.put(r.code, new String[] { r.lot, r.sentAt });
+        for (Row r : rows)    if (r.sentAt != null) out.put(r.code, new String[] { r.lot, r.sentAt });
+        return out;
+    }
+
     public java.util.List<app.core.RunReport.Entry> reportEntries() {
         java.util.List<app.core.RunReport.Entry> out = new java.util.ArrayList<>();
         for (Row r : rows) out.add(new app.core.RunReport.Entry(r.code, r.lot, r.sentAt));

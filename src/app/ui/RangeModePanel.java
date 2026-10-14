@@ -25,6 +25,8 @@ public class RangeModePanel extends JPanel {
 
     /** The robot's hands; a test puts fake ones here. */
     app.core.PairBurst.Hands hands = RobotEngine.getInstance();
+    /** Answers the "already registered today" question; a test answers it. */
+    java.util.function.Predicate<String> confirmer = this::askConfirm;
     private AutomationTask currentTask = null;
     private VerificationTask verifyTask = null;
     private volatile boolean robotRunning = false;
@@ -194,6 +196,12 @@ public class RangeModePanel extends JPanel {
         updatePreview();
     }
 
+    private boolean askConfirm(String message) {
+        int c = JOptionPane.showConfirmDialog(this, message, "Già registrate oggi",
+            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        return c == JOptionPane.YES_OPTION;
+    }
+
     /** Etichetta and Lotto trade places, and the label is read again. */
     private void swapFields() {
         if (robotRunning) return;
@@ -264,9 +272,30 @@ public class RangeModePanel extends JPanel {
             return;
         }
 
+        // labels registered EARLIER TODAY: another lot is a correction on the
+        // portal (the last one wins); ask once, with the list
+        Map<String, String[]> today = results.registeredToday();
+        List<String> changes = new java.util.ArrayList<>();
+        int same = 0;
+        for (String c : codes) {
+            String[] b = today.get(c);
+            if (b == null) continue;
+            if (b[0].equals(lot)) same++;
+            else changes.add(c + "  (alle " + b[1] + " con " + b[0] + ")");
+        }
+        if (!changes.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(changes.size()).append(" etichette sono già state registrate oggi con un altro lotto:\n\n");
+            for (int i = 0; i < changes.size() && i < 10; i++) sb.append(changes.get(i)).append('\n');
+            if (changes.size() > 10) sb.append("... e altre ").append(changes.size() - 10).append('\n');
+            sb.append("\nÈ una correzione: sul portale vincerà il lotto ").append(lot).append(".\n\nAvviare comunque?");
+            if (!confirmer.test(sb.toString())) { warn("Avvio annullato: etichette già registrate oggi."); return; }
+        }
+
         int cx = cfg.getInt(SettingsManager.REG_COORD_X, -1);
         int cy = cfg.getInt(SettingsManager.REG_COORD_Y, -1);
         if (cx < 0 || cy < 0) { warn("Memorizza «Casella 1» nelle Impostazioni."); return; }
+        if (same > 0) status.setString(same + " etichette già registrate oggi con lo stesso lotto: reinvio");
 
         Map<String, Point> targets = new LinkedHashMap<>();
         targets.put("Casella 1", new Point(cx, cy));
