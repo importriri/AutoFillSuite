@@ -24,6 +24,12 @@ The tool is used on a production-floor Windows PC and remains a standalone Java
 
 ## Workflows
 
+Four modes: **Intervallo** (a range of labels), **Scansione** (scanned pairs),
+**Da file** (files from a second line) and **Stampa** (printing). A second line
+without a portal PC records its pairs with
+[ScanLedger](https://github.com/importriri/ScanLedger) and exports them as CSV
+files for the Da file mode.
+
 ### Range registration
 
 Scan the first label, enter a quantity and choose the timing. The application
@@ -45,10 +51,11 @@ acceptance path as ENTER. TAB on QR 1 and Shift+TAB keep normal focus traversal.
 
 ### Files from a second line ("Da file")
 
-A line without a portal PC records its pairs with Registro QR and exports a
-CSV. This mode reads that file, checks its fingerprint, the order of the
-day's exports and the portal's current state, then registers it in verified
-blocks and can resume where it stopped.
+A line without a portal PC records its pairs with ScanLedger (Registro QR on
+screen) and exports a CSV in the format of
+[`docs/CSV-FORMAT.md`](docs/CSV-FORMAT.md). This mode reads that file, checks
+its fingerprint, the order of the day's exports and the portal's current
+state, then registers it in verified blocks and can resume where it stopped.
 
 ### Printing helper
 
@@ -59,9 +66,12 @@ number of clicks with a configurable delay.
 ## Safety and recovery
 
 - Moving the mouse stops the current robot operation.
+- One robot at a time: no mode starts while another one drives the mouse.
 - A pair is returned to the queue only when the save action did not happen.
 - The window checks that it is not covering one of its own click targets.
-- Every attempted send is journaled before completion.
+- Every attempted send is journaled before completion; the scan queue is
+  written to disk before a pair shows in the table and comes back after a
+  closed app or a power cut.
 - An interrupted session can reopen with pending verification.
 - Queued or uncovered rows cannot appear as verified.
 - Retries request a new export instead of reusing a stale result.

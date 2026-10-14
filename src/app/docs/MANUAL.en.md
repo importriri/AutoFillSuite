@@ -28,7 +28,8 @@ The same text is readable inside the app: **Impostazioni > Manuale**.
    at the next launch.
 
 If the app window would cover one of its own click targets, it steps aside
-on its own before starting — or refuses to start and tells you.
+on its own before starting — or refuses to start and tells you. The portal
+may also sit on a second monitor, right or left of the main one.
 
 ## 2. REGISTRA · Intervallo (range mode)
 
@@ -145,6 +146,10 @@ Two practical rules:
   session, or before the app was reopened) with **another** lot, the app asks
   first, saying when and with which lot: this one will win on the portal, so it
   is a correction. With the **same** lot it is a re-send: a warning only.
+- **Questions and the scanner.** The questions that can show up while you scan
+  (registered today, remove a pair, discard the queue, close) answer **No** by
+  default: the ENTER or TAB of the next scan answers No, and that scan has to be
+  repeated. **Sì** (yes) is clicked with the mouse only.
 - **Sounds.** One short high tone = fine; two low tones = error. Volume and
   on/off in **Impostazioni > Finestra**.
 - **Half-scanned pair.** Leave a single QR in the fields while the queue is
@@ -155,6 +160,14 @@ Two practical rules:
   tells you.
 - **Pair not sent.** If a burst dies halfway, its table row turns
   **NON INVIATA** and the robot pauses: no pair disappears quietly.
+- **One robot at a time.** While another mode works (a range, a file, a
+  print run, a verification) scans are not queued: the banner says **Coppia
+  NON accodata** and who is working. Likewise the other modes do not start
+  while Scansione has pairs queued or is sending.
+- **Verification during a block.** Pressed while a block is being released,
+  the verification waits for the end of the block.
+- **Nuova sessione.** With pairs queued, or sent and not verified yet, it asks
+  first (default answer: No).
 
 ### 3.4 The queue is saved on disk
 
@@ -169,8 +182,15 @@ ritrovata: N coppie non inviate** at the next start:
 - **Scarta** (asks first) starts with an empty queue. The old journal is not
   deleted: it stays, renamed with the date.
 
-A pair whose ENTER was being pressed exactly when the PC went off comes back
-as **DA VERIFICARE**: it is not queued again, the first verification settles it.
+These come back as **DA VERIFICARE** (never queued again, the first
+verification settles them):
+
+- a pair whose ENTER was being pressed exactly when the PC went off;
+- pairs sent that no verification covered yet (for example the app closed
+  before the automatic check). Closing the app at that point asks first.
+
+If the journal got damaged (a bad disk sector, a hard power-off), the pairs of
+its intact lines still come back; the damaged file is kept beside it.
 
 ## 4. STAMPA (print mode)
 
@@ -204,7 +224,10 @@ A slow server never produces a false red: the app waits and re-clicks the
 export before giving up. If a verification fails, **RIPROVA** repeats it.
 Double-click the **Lotto** cell of a row to **register that label again** —
 keep the lot to re-send it as-is (a second pass), or type a new lot to
-correct it. Double-click any other cell to copy the label to the clipboard.
+correct it. Until the correction has gone out the row reads **CORREZIONE IN
+CODA** and no verification colors it; if it cannot go (robot busy, mouse
+moved) the row goes back to the old lot and reads **CORREZIONE NON INVIATA**.
+Double-click any other cell to copy the label to the clipboard.
 Rows from earlier runs (see the view toggle) are read-only history.
 
 At the top of the results panel a switch flips between **Ultimo giro** (only
@@ -229,7 +252,8 @@ the scan field — ready for the next round.
 While the robot works you do not need the fields, you need the state: the
 window can drop to a slim bar at the bottom of the screen (band, counter,
 STOP) and restores itself when the verification ends. Toggle it with the
-**HUD** button.
+**HUD** button. If a point the robot clicks lies at the bottom of the screen,
+the bar goes elsewhere.
 
 ## 7. Troubleshooting
 
@@ -246,8 +270,11 @@ STOP) and restores itself when the verification ends. Toggle it with the
 | A run crashed before verifying | On the next launch the app offers **VERIFICA ORA** for the pending run. |
 | «l'intervallo supera 999» | The last three digits would reach 1000: split the range, the second part starting from the new label. |
 | «Lotto in Etichetta» in Intervallo | The lot went into the Etichetta field: press **Scambia** (F2). |
-| «already registered today» question | That label has a lot on the portal since this morning: confirm only to really correct it. |
+| «already registered today» question | That label has a lot on the portal since this morning: confirm only to really correct it, clicking **Sì** with the mouse. |
+| A scan vanished while a question was open | The scan answered **No** to the question: scan the pair again. |
 | I closed the app with a full queue | Nothing is lost: reopen, **Ripristina** on the Scansione card, then REGISTRA TUTTO or RIPRENDI. |
+| «Robot occupato: ...» / «Coppia NON accodata: ...» | Another mode is working (or Scansione has pairs queued): wait for it to finish, then try again. |
+| «TUTTO INVIATO — manca la verifica finale» in Da file | The file stopped after its last row: press **VERIFICA E CHIUDI**. |
 | «GIÀ FATTO» when opening a file | That file was registered already. If it really must be done again: **Registra comunque...** |
 | «FUORI ORDINE» / «VECCHIO» | The previous export of the same day is missing, or a newer one went first: register the files in order. |
 | «MODIFICATO» | The CSV was resaved outside Registro QR (Excel): ask for the original, or regenerate it in Registro QR (Storico). |
@@ -286,12 +313,15 @@ the portal, in blocks, with the usual verification.
 
 Rows of a file are **not** corrected here: they are corrected in Registro QR,
 which sends them in the next file as **CORREZIONE**. A correction goes out as a
-re-send with the new lot, like a double click on the lot.
+re-send with the new lot. A double click on the lot of a file row only
+**re-sends it with its own lot**: another lot is refused.
 
 **If it stops** (mouse moved, STOP, app closed mid-run): reopen the same file,
 or the app — the card shows **FERMATO — alla riga n** and **Riprendi da n**.
 Before resuming the pre-flight checks the portal again: that also covers the
-pair sent a moment before the PC went off.
+pair sent a moment before the PC went off. If it stopped after the last row
+(or the last check did not succeed), nothing is left to send: the button
+becomes **VERIFICA E CHIUDI**, and a clean check closes the file.
 
 AutoFillSuite keeps a copy of every imported file in the report folder
 (`importazioni/`): the stick may be lost after the import.

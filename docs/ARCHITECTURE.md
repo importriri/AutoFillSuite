@@ -80,11 +80,20 @@ at its own:
 
 ```java
 for (;;) {
-    if (!mayRun()) { Thread.sleep(50); continue; }
-    Pair p = queue.pollFirst(50, TimeUnit.MILLISECONDS);
-    if (p == null) continue;
-    if (!mayRun()) { queue.addFirst(p); continue; }   // conditions flipped
-    burst(p);
+    if (!mayRun() || queue.isEmpty()) { Thread.sleep(20); continue; }
+    RobotGate.Lease lease = RobotGate.tryAcquire("Scansione");
+    if (lease == null) { Thread.sleep(50); continue; }   // someone else is clicking
+    try {
+        if (!mayRun()) continue;
+        burstBusy = true;                                // before the pair leaves the queue
+        Pair p = queue.pollFirst();
+        if (p == null) continue;
+        if (!mayRun()) { queue.addFirst(p); continue; }  // conditions flipped
+        burst(p);
+    } finally {
+        burstBusy = false;
+        lease.release();
+    }
 }
 ```
 
@@ -105,12 +114,33 @@ controls are disabled as soon as release, a burst or verification can own the
 queue, and sent rows are immutable. This keeps table state and worker state
 from becoming two different queues.
 
+**One robot.** `RobotGate` (core) is the single permission to move the pointer
+or type: the scan worker takes it before a pair leaves the queue, a
+verification waits for it before its Export click, and range runs, file runs,
+print runs, lot corrections and the focus click back on the app take it too.
+The worker used to take the pair, ask the interface thread about the window,
+and only then say "busy": in that gap the queue looked empty and the robot
+idle, and the verification owed by the previous pair clicked Export in the
+middle of the next burst (`ScanRaceTest` holds the gap open on purpose). On
+top of the gate, `RunContext.busyElsewhere` keeps two *jobs* apart: a scan
+block releases the gate between its pairs, and a range started in such a gap
+would interleave with it; a scan arriving while another mode works is not
+queued, and a file is not opened over another mode's rows.
+
 The session verification is **owed, then taken**: every N sends it sets a
 `verifyDue` flag, and `maybeAutoVerify()` only fires it when the queue is
 empty, the fields are empty and no burst is in flight — retried by a 1s
 heartbeat until that lull arrives. Firing it on the count alone tore a
 released block in half: the robot walked off to click Export with pairs
 still queued. The check runs against a **snapshot** of the pairs sent so far.
+A check pressed by hand while a block is released waits for the block's end.
+
+A verification paints only what it looked for: `VerificationResult` carries the
+lot it expected per label, and the table and the report give a verdict only to
+a row showing that lot. A lot corrected by double click shows at once while the
+correction waits in the queue; the check of the session, made for the old lot,
+used to paint it green with the new one. A range check expects the lot each
+row shows, so a correction that went out is checked as such.
 
 ### The queue on disk
 
@@ -121,14 +151,21 @@ uses for its days (`QueueJournal`, adapted from ScanLedger: CRC per line,
 forced, a torn last line cut, a broken line in the middle never appended to):
 `ScanQueueStore` writes `ACCODA`, `MODIFICA_CODA`, `TOGLI_CODA`, `IN_INVIO`
 (right before ENTER, through PairBurst's `BeforeEnter`), `INVIATA` (right after
-ENTER) and `SESSIONE_NUOVA`, and a pair enters the queue and the table only
-after its line is forced. At start the pairs queued and not sent are offered
-back (**Ripristina** / **Scarta**); restored pairs never fire on their own. A
+ENTER), `VERIFICATA` (a verification covered the pair) and `SESSIONE_NUOVA`,
+and a pair enters the queue and the table only after its line is forced. At
+start the pairs queued and not sent are offered back (**Ripristina** /
+**Scarta**); restored pairs never fire on their own. Ripristina writes nothing:
+the pairs are already in the journal with their ids (it used to empty the
+journal and queue them again one by one, and a crash in between lost them). A
 pair left `IN_INVIO` without `INVIATA` — the PC went off between ENTER and the
-line — comes back **DA VERIFICARE**, covered by the next verification, never
-queued again. A new session renames the journal with the date, never deletes
-it. If the BeforeEnter line cannot be written, ENTER is not pressed: nothing is
-sent that could not be recorded.
+line — and a pair `INVIATA` that no check covered come back **DA VERIFICARE**,
+settled by the next verification, never queued again; closing the app with
+such pairs asks first. A broken line in the middle sets the journal aside, and
+the pairs of the good lines before it are carried into the fresh one. A new
+session renames the journal with the date, never deletes it, and asks first
+when it would throw away queued or unchecked pairs. If the BeforeEnter line
+cannot be written, ENTER is not pressed: nothing is sent that could not be
+recorded.
 
 ### Who owns the HUD
 
@@ -213,7 +250,8 @@ Everything happens **before the robot's first click**:
    (`AutoFillSuite_importazioni.txt`) records every import: `INIZIO`, every
    `INVIATA` written **right after ENTER** (PairBurst's `AfterEnter` hook, before
    anything else), `BLOCCO_VERIFICATO`, `INTERROTTO`, `COMPLETATO`. Appended and
-   forced; a line cut by a shutdown is ignored, never guessed. Writer and parser
+   forced; a line cut by a shutdown is ignored, never guessed, and the next
+   line is never glued to it (a torn tail gets its LF first). Writer and parser
    are tested on a round trip.
 3. **The order.** The portal keeps the last registration of a label, so an old
    file registered after a correction silently puts the wrong lot back. Export
@@ -235,13 +273,27 @@ like `verifySession`). A red block stops the run and gives the cockpit back.
 
 **Resume.** A file stopped by the fail-safe, STOP or a closed app is
 `INTERROTTO` in the register. Reopening it, or restarting the app (which loads
-it from AutoFillSuite's own copy in `importazioni/`), offers *Riprendi da n*.
-The pre-flight runs again first: it covers the one pair that may have been sent
-when the PC went off between ENTER and the `INVIATA` line.
+it from AutoFillSuite's own copy in `importazioni/`, found by the fingerprint of
+its content like the archive itself), offers *Riprendi da n*. The pre-flight
+runs again first: it covers the one pair that may have been sent when the PC
+went off between ENTER and the `INVIATA` line. A file stopped with every row
+already sent (after the last ENTER, or on its last block's check) has nothing
+left to send: the lever becomes *VERIFICA E CHIUDI*, and a clean check writes
+`COMPLETATO`.
+
+**Corrections.** A file's rows are corrected in Registro QR and come back in
+its next export. A double click on a file row only sends it again with the
+file's own lot; another lot is refused, because every block check of the file
+expects the file's lots (it used to add a second job and leave the first one
+pending: the old lot went out last and won).
 
 **The file session** has its own start in `ResultsPanel` (`beginFileSession`):
 the queue editor stays off — a file's rows are corrected in Registro QR — and
-the report section reads `modalita=file` with the file name.
+the report section reads `modalita=file` with the file name. Every start of a
+run, session or file clears the panel's retry, cancel and correction: the mode
+that verifies the new rows sets its own (they used to belong to whichever mode
+verified last). A range check by hand archives a run that is not that range
+instead of rebuilding it in place.
 
 **Injection points**, the minimum the tests need: `PairBurst.Hands` (implemented
 by `RobotEngine`; tests pass fake hands that append to a fake portal), and in
@@ -372,16 +424,25 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | Suite | What it pins down | The bug that created it |
 |---|---|---|
 | ScanGuardTest | inversion vs mismatch; fail-safe geometry | the lot scanned into QR 1; an unreadable pointer read as a movement |
+| RobotGateTest | one holder at a time, not re-entrant, waits with and without a limit | — (the gate every mode takes) |
+| RobotReleaseTest | a click interrupted between press and release still releases | ANNULLA leaving the left button held down |
+| ScanRaceTest | the window check held open for 300 ms: never a burst while a verification works; a pair waits while another mode holds the robot | an Export click in the middle of the next pair's burst |
+| ScanConfirmKeysTest | real keystrokes on the "already registered today" question: ENTER, TAB+ENTER, SPACE, ESC answer No; Sì takes the mouse | the next scan's ENTER confirming a correction nobody read |
+| ScanSessionTest | Nuova sessione asks before throwing work away; scans after another mode get their own section; Ripristina writes nothing; sent and unchecked pairs survive a close; a check by hand never ends a running block | a misclick emptying 40 queued pairs; pairs lost between two crashes |
+| ResultsOwnershipTest | a new run drops the previous mode's retry, cancel and correction; a range check archives other runs and keeps send times; the pending range offer survives a file reload | a range check rebuilding a scan session's rows in place |
+| HudPlacementTest | the HUD moves off a memorized coordinate | a portal button under the bar |
+| HudPositionTest | the saved position is the cockpit's, never the HUD's | the cockpit reopening at the bottom edge |
+| BannerFitTest | a long banner wraps and keeps its text in the tooltip; the HUD counter holds 1000 / 1000 | the label and the instruction cut off the end |
 | PairBurstTest | the burst sequence, the mouse check between every step, ENTER as point of no return | — (extracted so three modes share one sequence) |
 | CsvImportTest | the five contract samples with their outcome; shapes marked, never dropped | a file resaved in Excel; a file cut in transit |
-| ImportLedgerTest | register round trip, resume point, a line cut in half, export order, own copy | an old file registered after a correction |
+| ImportLedgerTest | register round trip, resume point, a line cut in half (and the line after it), export order, own copy found by content | an old file registered after a correction; the archived copy imported again |
 | PreflightTest | already there / to send / conflict, by the portal's last lot | a correction already made by hand on the portal |
-| FileModePanelTest | the "Da file" card with a fake robot and portal: checks, overrides, conflict, blocks of 3 over 7 checked after 3, 6, 7, fail-safe before and after ENTER, resume | — (new mode) |
+| FileModePanelTest | the "Da file" card with a fake robot and portal: checks, overrides, conflict, blocks of 3 over 7 checked after 3, 6, 7, fail-safe before and after ENTER, resume, corrections with the file's lot only, no click back under the HUD, closing a file stopped after its last row, restart from the archived copy | — (new mode) |
 | ReportAtomicTest | the day's report replaced whole or not at all, whatever the moment of the crash | Files.write truncating first: a crash left the report half empty |
-| ScanQueueJournalTest | the queue rebuilt from its journal; IN_INVIO without INVIATA comes back to verify; cut at every byte = exact prefix | pairs queued in A blocco lost with the app |
+| ScanQueueJournalTest | the queue rebuilt from its journal; IN_INVIO without INVIATA, and INVIATA without VERIFICATA, come back to verify; a broken line keeps the pairs before it; cut at every byte = exact prefix | pairs queued in A blocco lost with the app |
 | CrashTest | a JVM queueing pairs killed 10 times: every announced pair is on disk | — (proves the queue journal with a real kill) |
 | RangeModeTest | the range with fake hands: mouse checked at every step of every cycle and of the lot fix; QR patterns, Scambia; past 999 refused; labels registered today asked | the robot typing blind inside a cycle; a range of lots registered as labels; 998 + 5 = 1000 |
-| RegisteredTodayTest | a label sent earlier today with another lot asks first; the same lot only warns | a silent correction on the portal from a second session |
+| RegisteredTodayTest | a label sent earlier today with another lot asks first; the same lot only warns; the day's report read once, not at every scan | a silent correction on the portal from a second session |
 | MidnightReportTest | a run across midnight stays in the file of its day | journal and verification of one run in two files |
 | SoundsTest | ok and error tones, silence without a sound card, no bare beep left | one faint beep nobody hears on the floor |
 | ShutdownTest | a send then an immediate close: the row is in the report | System.exit killing the report writer and the pending timer |
@@ -392,7 +453,7 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | CoreExtrasTest | guard, report, history, log round-trip | writer and parser drifting apart |
 | GlyphSafetyTest | no emoji in UI strings | empty boxes on Windows |
 | IconRenderTest | icons as pixels, hub = hole | a black disc from AlphaComposite.Clear |
-| RunTableModelTest | uncovered rows never green (GIÀ PRESENTE included); a wrong lot keeps its tail; day-view index translation | a queued pair painted OK; a correction landing on history; the head of a lot shown instead of its end |
+| RunTableModelTest | uncovered rows never green (GIÀ PRESENTE included); a row showing another lot than the one checked never green; a check keeps NON INVIATA and queued words; a wrong lot keeps its tail; day-view index translation | a queued pair painted OK; a queued correction painted OK with its new lot; a correction landing on history; the head of a lot shown instead of its end |
 | ScanTabSupportTest | TAB submits only on the marked QR 2; QR 1, Shift+TAB, other fields untouched; a third field breaks nothing | a scanner with a TAB suffix; the "exactly two fields" rule |
 | SpinnerCommitTest | on-screen number = executed number | chose 20, printed 30 |
 | TextFitTest | overflow keeps the tail | unreadable final digits in the bar |
@@ -444,7 +505,11 @@ is included.
   test: the settings save is atomic (sibling temp file + rename, so a crash
   mid-write can never corrupt it) and `restorePosition` checks every screen —
   a window remembered on a second monitor is restored there, one remembered
-  on an unplugged monitor is re-placed instead of opening off-screen.
+  on an unplugged monitor is re-placed instead of opening off-screen. The
+  position is never saved while the window is the HUD. Portal coordinates
+  may be negative (a monitor left of or above the main one): only an absent
+  key, or the old -1,-1 placeholder, means "not memorized" (`isSet`). The HUD
+  steps off any memorized coordinate under its place at the bottom.
 
 A note on duplicates: the portal is append-only and **the last registration
 of a label wins** — registering it again with another lot is a correction. The

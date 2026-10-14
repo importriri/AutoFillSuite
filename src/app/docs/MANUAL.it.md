@@ -28,7 +28,9 @@ Questo stesso testo si legge dentro l'app: **Impostazioni > Manuale**.
    impostazioni. Si applica al prossimo avvio.
 
 Se la finestra dell'app coprisse uno dei suoi stessi bersagli di click, si
-sposta da sola prima di partire — o rifiuta di partire e te lo dice.
+sposta da sola prima di partire — o rifiuta di partire e te lo dice. Il
+portale può stare anche su un secondo monitor, a destra o a sinistra di
+quello principale.
 
 ## 2. REGISTRA · Intervallo
 
@@ -149,6 +151,10 @@ Due regole pratiche:
   un'altra sessione, o prima di riaprire l'app) con un **altro** lotto, l'app
   chiede conferma dicendo quando e con che lotto: sul portale vincerà questo,
   quindi è una correzione. Con lo **stesso** lotto è un reinvio: solo un avviso.
+- **Domande e lettore.** Le domande che possono comparire mentre si spara
+  (già registrata oggi, elimina coppia, scarta la coda, chiudi) hanno **No**
+  come risposta predefinita: l'INVIO o il TAB del prossimo sparo rispondono No,
+  e quello sparo va ripetuto. **Sì** si clicca solo con il mouse.
 - **Suoni.** Un suono acuto corto = tutto bene; due suoni bassi = errore.
   Volume e acceso/spento in **Impostazioni > Finestra**.
 - **Coppia incompleta.** Se lasci un solo QR nei campi mentre la coda è piena,
@@ -159,6 +165,14 @@ Due regole pratiche:
 - **Coppia non inviata.** Se il burst fallisce a metà, la riga in tabella
   diventa **NON INVIATA** e il robot va in pausa: nessuna coppia sparisce in
   silenzio.
+- **Un robot alla volta.** Mentre un'altra modalità lavora (un Intervallo, un
+  file, una stampa, una verifica) gli spari non entrano in coda: il banner dice
+  **Coppia NON accodata** e chi sta lavorando. Allo stesso modo le altre
+  modalità non partono finché la Scansione ha coppie in coda o sta inviando.
+- **Verifica durante un blocco.** Premuta mentre un blocco sta partendo, la
+  verifica aspetta la fine del blocco.
+- **Nuova sessione.** Se ci sono coppie in coda o coppie inviate e non ancora
+  verificate, prima chiede (risposta predefinita: No).
 
 ### 3.4 La coda è salvata su disco
 
@@ -173,9 +187,17 @@ Scansione mostra **Coda ritrovata: N coppie non inviate**:
 - **Scarta** (chiede conferma) riparte con la coda vuota. Il vecchio giornale
   non si cancella: resta rinominato con la data.
 
-Una coppia per cui il PC si è spento proprio mentre il robot premeva INVIO
-torna come **DA VERIFICARE**: non viene rimessa in coda, la chiarisce la prima
-verifica.
+Tornano come **DA VERIFICARE** (mai rimesse in coda, le chiarisce la prima
+verifica):
+
+- una coppia per cui il PC si è spento proprio mentre il robot premeva INVIO;
+- le coppie inviate che nessuna verifica ha ancora coperto (per esempio
+  l'app chiusa prima della verifica automatica). Chiudendo l'app in quel
+  momento, una domanda te lo ricorda.
+
+Se il giornale si è danneggiato (un settore del disco, uno spegnimento brusco),
+le coppie delle righe intatte tornano lo stesso; il file danneggiato resta
+salvato accanto.
 
 ## 4. STAMPA
 
@@ -209,7 +231,10 @@ Un sito lento non produce mai un falso rosso: l'app aspetta e ri-clicca
 l'export prima di arrendersi. Se una verifica fallisce, **RIPROVA** la
 ripete. Doppio click sulla cella **Lotto** di una riga per **registrare di
 nuovo quell'etichetta** — tieni lo stesso lotto per reinviarla tale e quale
-(una seconda passata), oppure scrivi un nuovo lotto per correggerla. Doppio
+(una seconda passata), oppure scrivi un nuovo lotto per correggerla. Finché la
+correzione non è partita la riga dice **CORREZIONE IN CODA** e nessuna verifica
+la colora; se non parte (robot occupato, mouse mosso) la riga torna al lotto di
+prima e dice **CORREZIONE NON INVIATA**. Doppio
 click su qualsiasi altra cella per copiare l'etichetta negli appunti. Le
 righe dei giri precedenti (vedi il selettore vista) sono storico in sola
 lettura.
@@ -236,7 +261,8 @@ scansione — pronta per il giro successivo.
 Mentre il robot lavora non ti servono i campi, ti serve lo stato: la
 finestra può ridursi a una barra sottile in fondo allo schermo (banda,
 contatore, STOP) e si ripristina da sola a verifica finita. Si attiva col
-tasto **HUD**.
+tasto **HUD**. Se in fondo allo schermo c'è un punto che il robot clicca, la
+barra si mette altrove.
 
 ## 7. Problemi comuni
 
@@ -253,8 +279,11 @@ tasto **HUD**.
 | Un run è crashato prima della verifica | Al prossimo avvio l'app offre **VERIFICA ORA** per il run in sospeso. |
 | «l'intervallo supera 999» | Le tre cifre finali arriverebbero a 1000: dividi l'intervallo in due, il secondo partendo dalla nuova etichetta. |
 | «Lotto in Etichetta» nell'Intervallo | Hai sparato il lotto nel campo Etichetta: premi **Scambia** (F2). |
-| Domanda «già registrata oggi» | Quell'etichetta ha già un lotto sul portale da stamattina: conferma solo se vuoi davvero correggerlo. |
+| Domanda «già registrata oggi» | Quell'etichetta ha già un lotto sul portale da stamattina: conferma solo se vuoi davvero correggerlo, cliccando **Sì** con il mouse. |
+| Uno sparo è sparito mentre c'era una domanda aperta | Lo sparo ha risposto **No** alla domanda: rispara la coppia. |
 | Ho chiuso l'app con la coda piena | Niente è perso: riapri, **Ripristina** sulla carta Scansione, poi REGISTRA TUTTO o RIPRENDI. |
+| «Robot occupato: ...» / «Coppia NON accodata: ...» | Un'altra modalità sta lavorando (o la Scansione ha coppie in coda): aspetta che finisca, poi riprova. |
+| «TUTTO INVIATO — manca la verifica finale» in Da file | Il file si è fermato dopo l'ultima riga: premi **VERIFICA E CHIUDI**. |
 | «GIÀ FATTO» aprendo un file | Quel file è già stato registrato. Se serve davvero rifarlo: **Registra comunque...** |
 | «FUORI ORDINE» / «VECCHIO» | Manca l'export precedente della stessa giornata, o ne è già passato uno più nuovo: registra i file in ordine. |
 | «MODIFICATO» | Il CSV è stato risalvato fuori da Registro QR (Excel): chiedi il file originale, o rigeneralo da Registro QR (Storico). |
@@ -293,12 +322,16 @@ il robot, a blocchi, con la stessa verifica di sempre.
 
 Le righe del file **non** si correggono qui: si correggono in Registro QR, che
 le manda nel file successivo come **CORREZIONE**. Le correzioni partono come un
-reinvio con il lotto nuovo, la stessa cosa del doppio click sul lotto.
+reinvio con il lotto nuovo. Il doppio click sul lotto di una riga del file
+serve solo a **reinviarla con il suo lotto**: un altro lotto viene rifiutato.
 
 **Se si ferma** (mouse mosso, STOP, app chiusa a metà): riapri lo stesso file,
 o riapri l'app — la carta mostra **FERMATO — alla riga n** e **Riprendi da n**.
 Prima di riprendere il pre-volo controlla di nuovo il portale: copre anche la
-coppia inviata un attimo prima che il PC si spegnesse.
+coppia inviata un attimo prima che il PC si spegnesse. Se si è fermato dopo
+l'ultima riga (o l'ultima verifica non è riuscita), non c'è più niente da
+inviare: il tasto diventa **VERIFICA E CHIUDI**, e una verifica pulita chiude
+il file.
 
 AutoFillSuite tiene una copia di ogni file importato nella cartella dei report
 (`importazioni/`): la chiavetta si può perdere dopo l'import.
