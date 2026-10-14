@@ -132,6 +132,23 @@ public final class ImportLedgerTest {
         check("archiving the same file again does not duplicate",
               ImportLedger.archive(report, csv, sha).equals(kept)
               && new File(report, "importazioni").list().length == 1);
+        // the stick is lost: the operator imports the archived copy itself
+        check("archiving the archived copy does not duplicate",
+              ImportLedger.archive(report, kept, sha).equals(kept)
+              && new File(report, "importazioni").list().length == 1);
+        // the same content under another name: a copy renamed on the stick
+        File renamed = new File(stick, "copia di registro.csv");
+        Files.copy(kept.toPath(), renamed.toPath());
+        check("the same content under another name is the same file",
+              ImportLedger.archive(report, renamed, sha).equals(kept)
+              && new File(report, "importazioni").list().length == 1);
+        // a different file is still archived on its own
+        File other = new File(stick, "registro_L2_2026-10-13_02.csv");
+        Files.copy(new File("test/fixtures/contratto-v1-export2.csv").toPath(), other.toPath());
+        String otherSha = app.core.CsvImport.read(Files.readAllBytes(other.toPath())).computedSha;
+        File second = ImportLedger.archive(report, other, otherSha);
+        check("another fingerprint gets its own copy",
+              !second.equals(kept) && new File(report, "importazioni").list().length == 2);
     }
 
     static void check(String name, boolean cond) {

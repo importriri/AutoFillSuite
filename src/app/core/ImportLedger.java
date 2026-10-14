@@ -298,14 +298,22 @@ public final class ImportLedger {
      * Keeps AutoFillSuite's own copy of an imported file in
      * {@code <report>/importazioni/<name>_<first 8 of sha>.csv}, if not there yet:
      * the stick can be lost after the import, the file is not.
+     *
+     * "Already there" is decided by the fingerprint of the CONTENT, not by the
+     * name: importing the archived copy itself (the stick is lost) or a copy
+     * renamed on the stick returns the copy already kept.
      */
     public static File archive(File reportDir, File csv, String sha) throws IOException {
         File dir = app.config.AppFiles.importsDir(reportDir);
         Files.createDirectories(dir.toPath());
+        File known = archived(dir, sha);
+        if (known != null) return known;
         String base = csv.getName().toLowerCase().endsWith(".csv")
             ? csv.getName().substring(0, csv.getName().length() - 4) : csv.getName();
         File dest = new File(dir, base + "_" + sha.substring(0, Math.min(8, sha.length())) + ".csv");
-        if (dest.exists()) return dest;
+        for (int k = 2; dest.exists(); k++) {   // same name, other content: never overwrite a copy
+            dest = new File(dir, base + "_" + sha.substring(0, Math.min(8, sha.length())) + "_" + k + ".csv");
+        }
         File tmp = new File(dir, dest.getName() + ".tmp");
         Files.copy(csv.toPath(), tmp.toPath(), StandardCopyOption.REPLACE_EXISTING);
         try {
@@ -314,5 +322,20 @@ public final class ImportLedger {
             Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
         return dest;
+    }
+
+    /** The copy in the archive whose content has this fingerprint, or null. */
+    private static File archived(File dir, String sha) {
+        File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".csv"));
+        if (files == null) return null;
+        java.util.Arrays.sort(files);
+        for (File f : files) {
+            try {
+                if (sha.equals(CsvImport.read(Files.readAllBytes(f.toPath())).computedSha)) return f;
+            } catch (IOException unreadable) {
+                // a copy that cannot be read is not the one we look for
+            }
+        }
+        return null;
     }
 }
