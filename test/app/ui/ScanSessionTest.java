@@ -32,6 +32,7 @@ public final class ScanSessionTest {
         scanAfterAnotherModesRun_opensItsOwnSection();
         scanWhileAnotherModeWorks_isRefused();
         restore_keepsEveryPairOnDisk();
+        sentNeverVerified_isNotForgotten();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -129,6 +130,55 @@ public final class ScanSessionTest {
         check("...and the pair to verify, still to verify", disk.unsure().size() == 1
               && disk.unsure().get(0).id == cut);
         disk.close();
+    }
+
+    // continuo, a check every 10: 7 pairs sent, then the app closed (no
+    // question) or the PC went off. nothing remembered them: never verified,
+    // and nothing at the next start said so
+    private static void sentNeverVerified_isNotForgotten() throws Exception {
+        File dir = Files.createTempDirectory("afs-unverified").toFile();
+        SettingsManager cfg = SettingsManager.getInstance();
+        cfg.set(SettingsManager.REPORT_DIR, dir.getPath());
+        cfg.set(SettingsManager.SCAN_BATCH, false);
+        cfg.set(SettingsManager.SCAN_VERIFY_AUTO, false);
+        cfg.set(SettingsManager.SCAN_COORD_X, 5);
+        cfg.set(SettingsManager.SCAN_COORD_Y, 5);
+        cfg.set(SettingsManager.SCAN_FOCUS, 0);
+        cfg.set(SettingsManager.SCAN_KEY, 0);
+        cfg.set(SettingsManager.SCAN_ENTER, 0);
+        cfg.save();
+        final ScanModePanel[] sp = new ScanModePanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            sp[0] = new ScanModePanel(new ResultsPanel(() -> { }), new RangeModeTest.NoopRunContext());
+            sp[0].hands = new QuietHands();
+        });
+        scan(sp[0], "LBL501", "LOT-U");
+        scan(sp[0], "LBL502", "LOT-U");
+        long until = System.currentTimeMillis() + 5000;
+        while (queued(sp[0]) > 0 && System.currentTimeMillis() < until) Thread.sleep(50);
+        Thread.sleep(300);
+        check("closing now says two pairs were never verified", sp[0].closeReason() != null
+              && sp[0].closeReason().contains("2"));
+
+        // the PC goes off: the next start
+        final ScanModePanel[] next = new ScanModePanel[1];
+        SwingUtilities.invokeAndWait(() ->
+            next[0] = new ScanModePanel(new ResultsPanel(() -> { }), new RangeModeTest.NoopRunContext()));
+        check("the next start offers the two sent pairs to verify",
+              next[0].recoveryText() != null && next[0].recoveryText().contains("2 da verificare"));
+        cfg.set(SettingsManager.SCAN_BATCH, true);
+        cfg.save();
+    }
+
+    /** Hands that type nothing: the pair counts as sent at once. */
+    static final class QuietHands implements app.core.PairBurst.Hands {
+        @Override public void doubleClick(int x, int y) { }
+        @Override public void click(int x, int y) { }
+        @Override public void pasteText(String text) { }
+        @Override public void pressTab() { }
+        @Override public void pressEnter() { }
+        @Override public void sleep(int ms) { }
+        @Override public boolean isMouseMoved(Point target) { return false; }
     }
 
     static void scan(ScanModePanel p, String q1, String q2) throws Exception {

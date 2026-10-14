@@ -23,6 +23,7 @@ public final class ScanQueueJournalTest {
         newSession_keepsTheOldJournal();
         truncation_atEveryByte_isAnExactPrefix();
         brokenLineInTheMiddle_keepsTheIntactPairs();
+        sentPairs_stayToVerify_untilACheckCoversThem();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -116,6 +117,24 @@ public final class ScanQueueJournalTest {
               third.pending().size() == 1 && third.unsure().size() == 1);
         check("the damaged journal is kept beside it",
               Arrays.stream(d.list()).anyMatch(n -> n.contains("danneggiato")));
+        third.close();
+    }
+
+    private static void sentPairs_stayToVerify_untilACheckCoversThem() throws Exception {
+        File d = dir();
+        ScanQueueStore s = ScanQueueStore.open(d, Clock.systemDefaultZone());
+        long a = s.enqueue("QR-1", "LOT-1", "continuo").id;
+        long b = s.enqueue("QR-2", "LOT-2", "continuo").id;
+        s.sending(a); s.sent(a);
+        s.sending(b); s.sent(b);
+        s.close();
+        ScanQueueStore back = ScanQueueStore.open(d, Clock.systemDefaultZone());
+        check("sent pairs no check covered come back to verify", back.unverified().size() == 2);
+        back.verified(Arrays.asList("QR-1"));
+        back.close();
+        ScanQueueStore third = ScanQueueStore.open(d, Clock.systemDefaultZone());
+        check("a check covers a pair for good", third.unverified().size() == 1
+              && third.unverified().get(0).id == b);
         third.close();
     }
 

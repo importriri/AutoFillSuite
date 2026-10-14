@@ -24,6 +24,8 @@ public final class QueueEvent {
         IN_INVIO,
         /** id — written right after ENTER: the pair is on the portal */
         INVIATA,
+        /** id — a verification covered the pair: nothing left to check */
+        VERIFICATA,
         /** no fields: the queue starts from nothing */
         SESSIONE_NUOVA;
 

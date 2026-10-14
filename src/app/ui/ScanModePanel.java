@@ -954,7 +954,10 @@ public class ScanModePanel extends JPanel {
         try {
             store = ScanQueueStore.open(dir, java.time.Clock.systemDefaultZone());
             foundPending = new java.util.ArrayList<>(store.pending());
+            // to verify: a pair cut at ENTER, and a pair sent that no check
+            // ever covered (the app closed, the PC went off before the check)
             foundUnsure = new java.util.ArrayList<>(store.unsure());
+            foundUnsure.addAll(store.unverified());
         } catch (java.io.IOException ex) {
             store = null;
             storeError = ex.getMessage();
@@ -1024,18 +1027,20 @@ public class ScanModePanel extends JPanel {
         revalidate();
     }
 
-    /** A verification covered the restored pairs "to verify": their doubt is over on disk too. */
+    /**
+     * A verification covered these labels: on disk, their pairs are settled
+     * (sent or cut at ENTER alike), so the next start does not offer them.
+     */
     private void settleRestored(Map<String, String> covered) {
-        if (store == null || toSettle.isEmpty()) return;
+        if (store == null) return;
+        try {
+            store.verified(covered.keySet());
+        } catch (java.io.IOException ex) {
+            return;   // they come back to verify at the next start, which is safe
+        }
         for (java.util.Iterator<Long> it = toSettle.iterator(); it.hasNext(); ) {
             ScanQueueStore.Item item = store.item(it.next());
-            if (item == null || !covered.containsKey(item.q1)) continue;
-            try {
-                store.sent(item.id);
-                it.remove();
-            } catch (java.io.IOException ex) {
-                // stays IN_INVIO: it comes back to verify, which is safe
-            }
+            if (item == null || item.state == ScanQueueStore.State.VERIFIED) it.remove();
         }
     }
 
@@ -1064,6 +1069,18 @@ public class ScanModePanel extends JPanel {
     /** What the banner says now (the tests read it). */
     String bannerText() {
         return banner.getText();
+    }
+
+    /** Why closing now would leave something behind, or null. */
+    String closeReason() {
+        String busy = busyReason();
+        if (busy != null) return busy;
+        int unchecked = sinceVerify + toSettle.size();
+        if (unchecked > 0) {
+            return unchecked + " coppie inviate non ancora verificate:"
+                 + " alla riapertura le ritrovi da verificare.";
+        }
+        return null;
     }
 
     /** Why closing now would cut something short, or null. */

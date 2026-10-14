@@ -28,7 +28,7 @@ public final class ScanQueueStore {
 
     public static final String FILE_NAME = app.config.AppFiles.QUEUE_JOURNAL;
 
-    public enum State { QUEUED, REMOVED, SENDING, SENT }
+    public enum State { QUEUED, REMOVED, SENDING, SENT, VERIFIED }
 
     /** One pair as the journal knows it. */
     public static final class Item {
@@ -127,6 +127,22 @@ public final class ScanQueueStore {
         return Collections.unmodifiableList(out);
     }
 
+    /** Pairs sent and never covered by a verification (the app closed, the PC went off). */
+    public List<Item> unverified() {
+        List<Item> out = new ArrayList<>();
+        for (Item i : items.values()) if (i.state == State.SENT) out.add(i);
+        return Collections.unmodifiableList(out);
+    }
+
+    /** A verification covered these labels: their sent (or maybe sent) pairs are settled. */
+    public void verified(java.util.Collection<String> labels) throws IOException {
+        for (Item i : new ArrayList<>(items.values())) {
+            if ((i.state == State.SENT || i.state == State.SENDING) && labels.contains(i.q1)) {
+                write(QueueEvent.Type.VERIFICATA, String.valueOf(i.id));
+            }
+        }
+    }
+
     public Item item(long id) {
         return items.get(id);
     }
@@ -215,7 +231,12 @@ public final class ScanQueueStore {
                 }
                 case INVIATA: {
                     Item i = items.get(Long.parseLong(e.field(0)));
-                    if (i != null) i.state = State.SENT;
+                    if (i != null && i.state != State.VERIFIED) i.state = State.SENT;
+                    break;
+                }
+                case VERIFICATA: {
+                    Item i = items.get(Long.parseLong(e.field(0)));
+                    if (i != null) i.state = State.VERIFIED;
                     break;
                 }
                 case SESSIONE_NUOVA:

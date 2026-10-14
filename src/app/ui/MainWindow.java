@@ -187,7 +187,7 @@ public class MainWindow extends JFrame implements RunContext {
 
     /** null when nothing would be cut short by closing now. */
     String busyReason() {
-        String scan = scanMode.busyReason();
+        String scan = scanMode.closeReason();
         if (scan != null) return scan;
         if (rangeMode.isBusy()) return "Il robot sta lavorando (Intervallo) o c'è una verifica in corso.";
         if (printMode.isBusy()) return "Il robot sta stampando.";
