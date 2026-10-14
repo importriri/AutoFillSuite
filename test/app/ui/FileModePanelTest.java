@@ -87,6 +87,7 @@ public final class FileModePanelTest {
         failSafeBeforeEnter_keepsTheRow_resumeFinishes();
         grabAfterEnter_countsTheRow_andStops();
         robotBusyElsewhere_neverStarts();
+        correctionByDoubleClick_keepsTheFileLot();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -328,6 +329,44 @@ public final class FileModePanelTest {
         startAndWait(p);
         check("...and runs once the robot is free", portal.size() == 4);
         check("the robot is given back at the end", app.core.RobotGate.owner() == null);
+    }
+
+    // a double-click correction in "Da file" added a NEW job and left the
+    // original one pending: AVVIA sent the correction, then the original row
+    // with the file's old lot, which won on the portal; and every later check
+    // expected the file lot, so a sent row corrected to another lot made each
+    // block red. a file's rows are corrected in Registro QR: here a row can
+    // only be sent again with its own lot.
+    private static void correctionByDoubleClick_keepsTheFileLot() throws Exception {
+        portal.clear();
+        Hands h = new Hands();
+        h.grabPair = 5;
+        h.grabCheck = 3;   // rows 1..3 sent and verified, row 4 sent, row 5 stopped before ENTER
+        FileModePanel p = panel(h, "repFix");
+        File f = sevenRows("correzioni.csv", 5);
+        open(p, f);
+        startAndWait(p);
+        check("the run stopped at row 5 with four rows on the portal", portal.size() == 4);
+        final ResultsPanel r = results(p);
+        String lot5 = r.tableModel().lotAt(4), lot1 = r.tableModel().lotAt(0);
+
+        SwingUtilities.invokeAndWait(() -> r.applyFix(4, "ALTRO-LOTTO"));
+        check("another lot on a file row is refused: the row keeps the file lot",
+              lot5.equals(r.tableModel().lotAt(4)));
+        SwingUtilities.invokeAndWait(() -> r.applyFix(4, lot5));   // the row not sent yet, same lot
+        SwingUtilities.invokeAndWait(() -> r.applyFix(0, lot1));   // a sent row, sent again
+
+        h.grabPair = -1;
+        startAndWait(p);
+        String label5 = r.tableModel().codeAt(4), label1 = r.tableModel().codeAt(0);
+        long fives = portal.stream().filter(e -> e.startsWith(label5 + "|")).count();
+        long ones  = portal.stream().filter(e -> e.startsWith(label1 + "|")).count();
+        check("the row not sent yet goes out once, never twice", fives == 1);
+        check("nothing else reaches the portal with another lot",
+              portal.stream().noneMatch(e -> e.endsWith("|ALTRO-LOTTO")));
+        check("the sent row is sent again with its own lot", ones == 2);
+        check("the last registration of every label is the file's lot",
+              portal.stream().filter(e -> e.startsWith(label5 + "|")).allMatch(e -> e.endsWith("|" + lot5)));
     }
 
     static JButton lever(FileModePanel p) {

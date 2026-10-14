@@ -812,19 +812,35 @@ public class FileModePanel extends JPanel {
         t.start();
     }
 
-    /** Double click on a lot: register that label again with the burst, as a fix. */
+    /**
+     * Double click on a lot: register that row again. A file's rows are
+     * corrected in Registro QR, never here: another lot is refused (the next
+     * export of that line carries the correction, and every check of this file
+     * expects the file's lot). The same lot on a row already sent goes out
+     * once more; on a row not sent yet there is nothing to add, it is still
+     * on its way.
+     */
     private boolean fixLot(int row, String code, String oldLot, String newLot) {
         for (Job j : jobs) {
-            if (j.tableRow == row) {
-                CsvImport.CsvRow r = j.row;
-                Job fix = new Job(new CsvImport.CsvRow(r.n, code, newLot, r.ora, r.mode, r.tipo, true, r.lotBefore));
-                fix.tableRow = row;
-                fixes.add(fix);
+            if (j.tableRow != row) continue;
+            if (!j.row.lot.equals(newLot)) {
+                error("Le righe di un file si correggono in Registro QR, poi si importa il nuovo export");
+                return false;
             }
+            if (!j.sent) {
+                results.setRowOutcome(row, j.word == null ? "IN CODA" : j.word);
+                state(AppTheme.PEACH, AppTheme.ON_ACCENT, "Riga " + j.row.n + " ancora da inviare: parte con AVVIA");
+                return true;
+            }
+            for (Job f : fixes) if (f.tableRow == row) return true;   // already waiting
+            Job fix = new Job(j.row);
+            fix.tableRow = row;
+            fixes.add(fix);
+            refresh(null);
+            state(AppTheme.PEACH, AppTheme.ON_ACCENT, "Reinvio in coda — premi AVVIA");
+            return true;
         }
-        refresh(null);
-        state(AppTheme.PEACH, AppTheme.ON_ACCENT, "Correzione in coda — premi AVVIA");
-        return true;
+        return false;
     }
 
     // ── restart ──────────────────────────────────────────────────────────
