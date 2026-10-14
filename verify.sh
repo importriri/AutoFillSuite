@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command_name in java javac ant xvfb-run timeout unzip jar; do
+for command_name in java javac ant xvfb-run timeout unzip jar sha256sum; do
     command -v "${command_name}" >/dev/null || {
         printf 'missing command: %s\n' "${command_name}" >&2
         exit 2
     }
 done
+
+# the CSV contract is shared with ScanLedger (Registro QR): the same samples and
+# the same document must sit in both repositories, byte for byte
+(
+    cd test/fixtures
+    sha256sum --check --strict --quiet CHECKSUMS
+) || {
+    printf 'contract files changed: test/fixtures/CHECKSUMS does not match\n' >&2
+    exit 1
+}
 
 rm -rf out build dist
 mkdir -p out
@@ -23,6 +33,9 @@ java -cp out app.core.DownloadWatcherTest
 java -cp out app.core.VerificationTaskTest
 java -cp out app.core.CoreExtrasTest
 java -cp out app.core.ScanGuardTest
+java -cp out app.core.CsvImportTest
+java -cp out app.core.ImportLedgerTest
+java -cp out app.core.PreflightTest
 java -cp out app.ui.GlyphSafetyTest
 java -cp out app.ui.IconRenderTest
 java -cp out app.ui.RunTableModelTest
