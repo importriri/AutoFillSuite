@@ -225,12 +225,15 @@ public class ResultsPanel extends JPanel {
         buttons(false, false);
     }
 
+    /** The time the report is stamped with; a test moves it across midnight. */
+    static java.time.Clock clock = java.time.Clock.systemDefaultZone();
+
     private static final java.time.format.DateTimeFormatter STAMP =
         java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss");
 
     /** Display time: whenever it is asked, that is the answer. */
     private static String newStamp() {
-        return java.time.LocalTime.now().format(STAMP);
+        return java.time.LocalTime.now(clock).format(STAMP);
     }
 
     // The last identity handed out, so the next one is always later. NO explicit
@@ -245,7 +248,7 @@ public class ResultsPanel extends JPanel {
      * of the day. Stamps handed out here are strictly increasing.
      */
     private String nextRunStamp() {
-        java.time.LocalTime now = java.time.LocalTime.now().withNano(0);
+        java.time.LocalTime now = java.time.LocalTime.now(clock).withNano(0);
         if (lastRunTime != null && !now.isAfter(lastRunTime)) {
             now = lastRunTime.plusSeconds(1);
         }
@@ -254,7 +257,7 @@ public class ResultsPanel extends JPanel {
     }
 
     private static String today() {
-        return java.time.LocalDate.now().toString();   // yyyy-MM-dd
+        return java.time.LocalDate.now(clock).toString();   // yyyy-MM-dd
     }
 
     public void beginRun(int total, String lot) {
@@ -576,8 +579,13 @@ public class ResultsPanel extends JPanel {
         touchJournal();
     }
 
+    /**
+     * The file of the RUN's day, not of today: a run started at 23:58 and
+     * verified at 00:03 used to have its journal in one file and its
+     * verification in the next day's.
+     */
     private File reportFile() {
-        return app.config.AppFiles.dailyReport(today());
+        return app.config.AppFiles.dailyReport(runDate);
     }
 
     /**

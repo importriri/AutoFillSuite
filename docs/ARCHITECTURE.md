@@ -351,6 +351,10 @@ written to two different files without anybody noticing.
   Every rewrite of the day file is atomic (`AtomicFile`: a forced sibling,
   then a rename), so a crash mid-write leaves the old report whole, never a
   file cut in half.
+  The file is chosen by the run's own date (`runDate`), never by today's: a
+  run started at 23:58 and verified at 00:03 used to have its journal in one
+  file and its verification in the next day's. `ResultsPanel.clock` is the
+  one injection point the test uses to cross midnight.
   A verification then replaces the live section with real verdicts;
   `mergeDaily` keys on the section identity and leaves every other run of
   the day intact.
