@@ -24,6 +24,7 @@ public final class ImportLedgerTest {
         cutLine_isIgnored_notGuessed();
         order_previousFirst_neverAnOlderOneAfter();
         archive_keepsItsOwnCopy();
+        tornLastLine_neverSwallowsTheNextOne();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -149,6 +150,23 @@ public final class ImportLedgerTest {
         File second = ImportLedger.archive(report, other, otherSha);
         check("another fingerprint gets its own copy",
               !second.equals(kept) && new File(report, "importazioni").list().length == 2);
+    }
+
+    // a power cut in the middle of a line left a tail with no LF; the next
+    // line was written right after it, glued to it, and the parser threw the
+    // merged line away: the first INVIATA (or INIZIO) after a restart was lost
+    private static void tornLastLine_neverSwallowsTheNextOne() throws Exception {
+        File dir = Files.createTempDirectory("afs-torn").toFile();
+        ImportLedger l = ImportLedger.in(dir);
+        l.sent("S1", 1, "L1", "A");
+        l.sent("S1", 2, "L2", "B");
+        java.nio.file.Path f = l.file();
+        byte[] all = Files.readAllBytes(f);
+        Files.write(f, Arrays.copyOf(all, all.length - 9));   // the PC went off mid-line
+        l.sent("S1", 2, "L2", "B");                            // the resume sends row 2 again
+        l.sent("S1", 3, "L3", "C");
+        check("the line after a torn one is read: rows 1, 2 and 3 are sent",
+              l.state("S1").sent.equals(new java.util.LinkedHashSet<>(Arrays.asList(1, 2, 3))));
     }
 
     static void check(String name, boolean cond) {

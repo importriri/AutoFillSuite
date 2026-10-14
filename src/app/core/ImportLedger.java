@@ -99,7 +99,16 @@ public final class ImportLedger {
         File dir = file.toAbsolutePath().getParent().toFile();
         if (!dir.isDirectory()) Files.createDirectories(dir.toPath());
         try (FileChannel ch = FileChannel.open(file, StandardOpenOption.CREATE,
-                StandardOpenOption.WRITE, StandardOpenOption.APPEND)) {
+                StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+            // a line cut by a power loss has no LF: end it first, or this line
+            // would be glued to it and thrown away with it by the parser
+            long size = ch.size();
+            if (size > 0) {
+                ByteBuffer last = ByteBuffer.allocate(1);
+                ch.read(last, size - 1);
+                if (last.get(0) != '\n') sb.insert(0, '\n');
+            }
+            ch.position(size);
             ByteBuffer buf = ByteBuffer.wrap(sb.toString().getBytes(StandardCharsets.UTF_8));
             while (buf.hasRemaining()) ch.write(buf);
             ch.force(true);
