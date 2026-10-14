@@ -497,7 +497,7 @@ public class FileModePanel extends JPanel {
     }
 
     private void error(String msg) {
-        Toolkit.getDefaultToolkit().beep();
+        app.core.Sounds.error();
         state(AppTheme.RED, AppTheme.ON_ACCENT, msg);
     }
 
@@ -613,7 +613,7 @@ public class FileModePanel extends JPanel {
             } else if ("CONFLITTO".equals(why)) {
                 refresh(null);
             } else if (!"VERIFICA ROSSA".equals(why)) {
-                Toolkit.getDefaultToolkit().beep();
+                app.core.Sounds.error();
                 Job next = firstPending();
                 state(AppTheme.PEACH, AppTheme.ON_ACCENT, "FERMATO — " + why
                     + (next == null ? "" : " (" + sentCount() + " / " + jobs.size() + ")"));

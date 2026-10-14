@@ -43,7 +43,7 @@ public abstract class AutomationTask implements Runnable {
             if (running) {
                 SwingUtilities.invokeLater(() -> {
                     onCompleted();
-                    Toolkit.getDefaultToolkit().beep();
+                    Sounds.ok();
                 });
             }
 
@@ -51,7 +51,7 @@ public abstract class AutomationTask implements Runnable {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             e.printStackTrace();
-            Toolkit.getDefaultToolkit().beep();
+            Sounds.error();
             SwingUtilities.invokeLater(() -> showError(e.getMessage()));
         } finally {
             running = false;
@@ -77,7 +77,7 @@ public abstract class AutomationTask implements Runnable {
 
     protected void triggerFailSafe(String message) {
         running = false;
-        Toolkit.getDefaultToolkit().beep();
+        Sounds.error();
         SwingUtilities.invokeLater(() -> onFailSafe(message));
     }
 

@@ -176,7 +176,7 @@ public class RangeModePanel extends JPanel {
         if (ScanGuard.inspect(raw, "", p1, "") == ScanGuard.MISMATCH
                 && ScanGuard.inspect("", raw, "", p2) == ScanGuard.OK
                 && !p2.trim().isEmpty()) {
-            Toolkit.getDefaultToolkit().beep();
+            app.core.Sounds.error();
             state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Lotto in Etichetta: codici invertiti");
             warn("Hai sparato il lotto in Etichetta: premi Scambia (F2)");
             tfPrefix.setText("");
@@ -260,13 +260,13 @@ public class RangeModePanel extends JPanel {
         int advice = ScanGuard.inspect(tfScan.getText().trim(), lot,
             cfg.get(SettingsManager.SCAN_QR1_PATTERN, ""), cfg.get(SettingsManager.SCAN_QR2_PATTERN, ""));
         if (advice == ScanGuard.INVERTED) {
-            Toolkit.getDefaultToolkit().beep();
+            app.core.Sounds.error();
             state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Codici invertiti: premi Scambia (F2)");
             warn("Etichetta e Lotto sono al contrario");
             return;
         }
         if (advice == ScanGuard.MISMATCH) {
-            Toolkit.getDefaultToolkit().beep();
+            app.core.Sounds.error();
             state(AppTheme.RED, AppTheme.ON_ACCENT, "Formato non riconosciuto");
             warn("Etichetta o Lotto non hanno la forma attesa: controlla i due codici");
             return;
@@ -414,7 +414,7 @@ public class RangeModePanel extends JPanel {
                 results.showFailSafe(message);
             }
             @Override protected void showError(String msg) {
-                Toolkit.getDefaultToolkit().beep();
+                app.core.Sounds.error();
                 status.setString("Errore: " + msg);
                 state(AppTheme.RED, AppTheme.ON_ACCENT, "ERRORE ROBOT");
                 results.showFailure("Errore robot: " + msg);
@@ -467,11 +467,11 @@ public class RangeModePanel extends JPanel {
                             status.setString("Correzione inviata, poi mouse mosso — riverifica");
                             break;
                         case NOT_SENT:
-                            Toolkit.getDefaultToolkit().beep();
+                            app.core.Sounds.error();
                             status.setString("Mouse mosso: correzione di " + code + " NON inviata");
                             break;
                         default:
-                            Toolkit.getDefaultToolkit().beep();
+                            app.core.Sounds.error();
                             status.setString("Robot non disponibile: correzione NON inviata");
                     }
                 });

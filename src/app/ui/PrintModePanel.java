@@ -165,7 +165,7 @@ public class PrintModePanel extends JPanel {
                 state(AppTheme.PEACH, AppTheme.ON_ACCENT, "INTERROTTO — fail-safe");
             }
             @Override protected void showError(String msg) {
-                Toolkit.getDefaultToolkit().beep();
+                app.core.Sounds.error();
                 status.setString("Errore: " + msg);
                 state(AppTheme.RED, AppTheme.ON_ACCENT, "ERRORE");
             }

@@ -112,6 +112,8 @@ public class SettingsManager {
     public static final String UI_WIN_Y        = "ui.winY";
     public static final String UI_HUD          = "ui.hud";        // start collapsed to the bar
     public static final String UI_HUD_AUTO     = "ui.hudAuto";    // collapse while the robot works
+    public static final String UI_SOUND_ON     = "ui.soundOn";    // ok / error tones
+    public static final String UI_SOUND_VOLUME = "ui.soundVolume"; // 0-100
 
     // Collision guard: the app is always-on-top, so it can cover its own targets
     public static final String GUARD_ENABLED   = "guard.enabled";

@@ -323,6 +323,22 @@ public class SettingsWindow extends JDialog {
                      + "continuo stai sparando, e una finestra che si chiude e "
                      + "riapre sotto le mani darebbe solo fastidio");
         p.hint("La barra si apre e si chiude anche a mano, col tasto HUD nell'intestazione.");
+        p.section("Suoni");
+        JCheckBox sound = check("Suoni di conferma e di errore",
+            cfg.getBool(SettingsManager.UI_SOUND_ON, true));
+        sound.addActionListener(e -> save(SettingsManager.UI_SOUND_ON, sound.isSelected()));
+        p.row(sound, "ok = un suono acuto corto, errore = due suoni bassi: si distinguono senza "
+                   + "guardare lo schermo. Senza scheda audio resta il beep di sistema");
+        p.spinRow("Volume", intSp(SettingsManager.UI_SOUND_VOLUME, 80, 0, 100), "%", "");
+        JPanel test = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        test.setOpaque(false);
+        JButton tOk = AppTheme.secondary("Prova ok", null);
+        JButton tErr = AppTheme.secondary("Prova errore", null);
+        tOk.addActionListener(e -> app.core.Sounds.ok());
+        tErr.addActionListener(e -> app.core.Sounds.error());
+        test.add(tOk);
+        test.add(tErr);
+        p.row(test, "");
         return p.panel;
     }
 

@@ -334,7 +334,7 @@ public class ScanModePanel extends JPanel {
         // that cannot move: a bar reading 0 / n forever, with the explanation
         // hidden behind it. Same rule, said out loud instead.
         if (fieldsBusy) {
-            Toolkit.getDefaultToolkit().beep();
+            app.core.Sounds.error();
             setState(ERROR, "Coppia incompleta: completa o svuota i campi");
             return;
         }
@@ -388,21 +388,21 @@ public class ScanModePanel extends JPanel {
             cfg.get(SettingsManager.SCAN_QR2_PATTERN, ""));
         if (advice == ScanGuard.INVERTED) {
             if (!cfg.getBool(SettingsManager.SCAN_AUTOSWAP, false)) {
-                Toolkit.getDefaultToolkit().beep();
+                app.core.Sounds.error();
                 setState(WARN, "QR invertiti: premi Scambia (F2), poi INVIO");
                 return;
             }
             String t = q1; q1 = q2; q2 = t;
             corrected = true;
         } else if (advice == ScanGuard.MISMATCH) {
-            Toolkit.getDefaultToolkit().beep();
+            app.core.Sounds.error();
             setState(ERROR, "Formato non riconosciuto: controlla i due QR");
             return;
         }
 
         // 2. the same label twice is a scanner that fired twice
         if (cfg.getBool(SettingsManager.SCAN_DUP_GUARD, true) && alreadyKnown(q1)) {
-            Toolkit.getDefaultToolkit().beep();
+            app.core.Sounds.error();
             setState(ERROR, "Etichetta gia' in sessione: " + q1);
             return;
         }
@@ -434,7 +434,7 @@ public class ScanModePanel extends JPanel {
         // write-ahead: the pair is on disk before it is in the queue or the table
         ScanQueueStore.Item item = journalEnqueue(q1, q2);
         if (item == null) {
-            Toolkit.getDefaultToolkit().beep();
+            app.core.Sounds.error();
             setState(ERROR, "Coda non salvabile su disco: coppia NON accodata — " + storeError);
             return;
         }
@@ -492,7 +492,7 @@ public class ScanModePanel extends JPanel {
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
             if (choice != JOptionPane.OK_OPTION) return;
             if (!canEditQueued(row)) {
-                Toolkit.getDefaultToolkit().beep();
+                app.core.Sounds.error();
                 setState(ERROR, "La coda e' gia' partita: modifica annullata");
                 return;
             }
@@ -701,7 +701,7 @@ public class ScanModePanel extends JPanel {
                     }
                     SwingUtilities.invokeLater(() -> {
                         endBlock();
-                        Toolkit.getDefaultToolkit().beep();
+                        app.core.Sounds.error();
                         results.markNotSent(pair.row, "Coppia non inviata: " + pair.q1);
                         setState(ERROR, "Coppia NON inviata: " + pair.q1 + " — controlla e rispara");
                         results.sessionCounters(sent, queue.size());
@@ -731,7 +731,7 @@ public class ScanModePanel extends JPanel {
         queue.addFirst(pair);
         paused = true;
         releasing = false;
-        Toolkit.getDefaultToolkit().beep();
+        app.core.Sounds.error();
         SwingUtilities.invokeLater(() -> {
             endBlock();
             setState(ERROR, "Mouse mosso: robot fermo. Controlla il form, poi RIPRENDI");
@@ -748,7 +748,7 @@ public class ScanModePanel extends JPanel {
         paused = true;
         releasing = false;
         endBlock();
-        Toolkit.getDefaultToolkit().beep();
+        app.core.Sounds.error();
         setState(ERROR, "Mouse mosso dopo il salvataggio: coppia inviata, robot in pausa");
         updateFireButton();
     }
