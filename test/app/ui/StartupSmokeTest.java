@@ -318,6 +318,13 @@ public final class StartupSmokeTest {
         // with saved settings it starts CLOSED, so measure, do not assume.
         JButton res = findButton(main, "Risultati");
         check("the results toggle is in the header", res != null);
+        // a verification run may still be finishing (the saved settings verify
+        // every 5 pieces): its HUD comes back down asynchronously under X11, and
+        // a size read before the geometry lands is the HUD's, not the cockpit's
+        if (main instanceof MainWindow) {
+            check("the window is idle and back to the cockpit before measuring",
+                  waitFor(() -> settled((MainWindow) main), 10000));
+        }
         if (res != null) {
             int startW = main.getWidth();
             SwingUtilities.invokeAndWait(res::doClick);
@@ -339,7 +346,7 @@ public final class StartupSmokeTest {
         if (hudBtn != null) {
             if (main instanceof MainWindow) {
                 check("the cockpit is restored before the manual HUD test",
-                      waitFor(() -> !((MainWindow) main).isHudMode(), 5000));
+                      waitFor(() -> settled((MainWindow) main), 10000));
             }
             int fullW = main.getWidth(), fullH = main.getHeight();
             SwingUtilities.invokeAndWait(hudBtn::doClick);
@@ -481,6 +488,12 @@ public final class StartupSmokeTest {
     }
 
     /** Polls instead of sleeping: a loaded machine is slow, not broken. */
+    /** No robot job, cockpit view, and a real cockpit height (not one still in flight). */
+    private static boolean settled(MainWindow w) {
+        return app.core.RobotGate.owner() == null && !w.isHudMode()
+            && w.getHeight() >= w.getMinimumSize().height - 4;
+    }
+
     private static boolean waitFor(java.util.function.BooleanSupplier done, int timeoutMs)
             throws Exception {
         long until = System.currentTimeMillis() + timeoutMs;
