@@ -349,11 +349,30 @@ public final class StartupSmokeTest {
                       waitFor(() -> settled((MainWindow) main), 10000));
             }
             int fullW = main.getWidth(), fullH = main.getHeight();
-            SwingUtilities.invokeAndWait(hudBtn::doClick);
-            check("the HUD shrinks the window",
-                  waitFor(() -> main instanceof MainWindow
-                              && ((MainWindow) main).isHudMode()
-                              && main.getHeight() < fullH, 3000));
+            // with saved settings an automatic verification can start and end
+            // around this click: its end gives the cockpit back (it collapsed
+            // the window itself) and the operator's HUD with it. The button is
+            // only clicked while it is on screen with no robot job, and again
+            // if such a job took the HUD back down meanwhile.
+            final JButton hudButton = hudBtn;
+            boolean shrank = waitFor(() -> {
+                MainWindow mw = (MainWindow) main;
+                if (!mw.isHudMode() && settled(mw) && hudButton.isShowing()) {
+                    try {
+                        SwingUtilities.invokeAndWait(hudButton::doClick);
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+                return mw.isHudMode() && app.core.RobotGate.owner() == null
+                    && main.getHeight() < fullH;
+            }, 8000);
+            if (!shrank) {
+                System.out.println("       hud=" + ((MainWindow) main).isHudMode()
+                    + " robot=" + app.core.RobotGate.owner() + " height=" + main.getHeight()
+                    + " cockpit=" + fullH + " min=" + main.getMinimumSize().height);
+            }
+            check("the HUD shrinks the window", shrank);
             // the big number was clipped at the top: 108 was the OUTER height
             // and the title bar starved the row. with honest preferred sizes
             // this walk catches it wherever the platform metrics bite.
