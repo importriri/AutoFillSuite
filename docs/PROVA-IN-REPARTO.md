@@ -1,11 +1,11 @@
-# Prova in reparto — AutoFillSuite 1.2.0
+# Prova in reparto — AutoFillSuite 1.3.0
 
-Passi da fare sul PC vero, con il portale vero, prima di usare la 1.2.0 per il
+Passi da fare sul PC vero, con il portale vero, prima di usare la 1.3.0 per il
 lavoro di tutti i giorni. Servono circa 30 minuti, un lettore QR e qualche
 etichetta di prova che si può registrare (e correggere) senza danni.
 
 Per ogni passo: cosa fare, cosa deve succedere. Se un passo non va come scritto,
-**fermarsi**, non usare la 1.2.0 e annotare cosa si è visto (con una foto dello
+**fermarsi**, non usare la 1.3.0 e annotare cosa si è visto (con una foto dello
 schermo se si può).
 
 Tenere a portata di mano la cartella dei report (Impostazioni → Cartelle).
@@ -14,7 +14,7 @@ Tenere a portata di mano la cartella dei report (Impostazioni → Cartelle).
 
 ## 1. "Vince l'ultima" sul portale (prima di tutto, 2 minuti)
 
-Tutta la 1.2.0 si basa su questa regola: se un'etichetta viene registrata due
+Tutta l'app si basa su questa regola: se un'etichetta viene registrata due
 volte, il portale tiene l'**ultima** registrazione. Va vista con i propri occhi.
 
 1. Sul portale, a mano, registrare un'etichetta di prova con il lotto **A**.
@@ -104,6 +104,90 @@ Deve succedere:
 
 ---
 
+## 8. Il .exe parte senza Java (2 minuti)
+
+1. Estrarre `AutoFillSuite-windows.zip` della release in una cartella qualsiasi
+   (anche il Desktop) e aprire `AutoFillSuite.exe`.
+
+Deve succedere:
+- l'app si apre con le impostazioni di sempre (stessa cartella utente del JAR);
+- se compare «Windows ha protetto il PC»: **Ulteriori informazioni** > **Esegui
+  comunque**, senza password di amministratore.
+
+Se Windows blocca il file e basta (nessun «Esegui comunque»): l'IT blocca gli
+eseguibili non firmati. Usare il JAR finché non lo sbloccano.
+
+## 9. Il conto alla rovescia del blocco
+
+1. Scansione > **A blocco**, sparare tre coppie di prova.
+2. Premere **REGISTRA TUTTO** con il mouse e togliere la mano con calma.
+
+Deve succedere:
+- il banner (e la barra bassa) dicono **PARTO TRA 3s — togli la mano dal mouse**,
+  il tasto dice **ANNULLA AVVIO**;
+- il robot parte solo dopo il conto e **non** si ferma per la sicura;
+- ripetendo e premendo **ANNULLA AVVIO** durante il conto, non parte niente e la
+  coda resta uguale.
+
+## 10. Cancella, con UNA etichetta rovinata (5 minuti)
+
+Prima: Impostazioni > **Cancella** > memorizzare **Casella Cancella** (il campo
+del riquadro Delete) e **Tasto DELETE**.
+
+1. Tab **CANCELLA**, sparare un'etichetta di prova da buttare, INVIO.
+2. Premere **CANCELLA DAL PORTALE (1)**.
+
+Deve succedere:
+- il conto alla rovescia, poi il robot clicca il campo, incolla, preme DELETE;
+- alla fine l'app fa un Export: **CANCELLATE E CONTROLLATE — 1**;
+- sul portale l'etichetta non c'è più; nella riga OGGI compare «1 cancellata».
+
+Se il banner dice **ANCORA SUL PORTALE**: il click è andato fuori bersaglio o il
+portale non ha cancellato. Rimemorizzare le due coordinate e riprovare.
+
+## 11. I buchi della giornata
+
+1. Con l'Intervallo registrare 3 etichette di prova consecutive, poi una
+   quarta saltandone due (es. ...001, ...002, ...003, poi ...006).
+
+Deve succedere:
+- la riga **OGGI** sotto il selettore diventa **rossa**: «1 BUCO (2 mancanti)»;
+- cliccandola si apre **Buchi** con ...004 - ...005;
+- registrando le due mancanti (o cancellandole col tasto **Cancella dal
+  portale**), il rosso sparisce.
+
+## 12. Chiudi e riapri
+
+1. Dopo i passi sopra, chiudere l'app e riaprirla.
+
+Deve succedere:
+- la riga OGGI riporta gli stessi numeri di prima;
+- **Oggi** elenca le etichette della giornata, una riga per etichetta.
+
+## 13. La finestra sulla strada
+
+1. Trascinare la finestra dell'app sopra la Casella 1 del portale.
+
+Deve succedere:
+- a robot fermo l'intestazione diventa **rossa** («Copro: Casella 1») con
+  **Spostala**; premendolo la finestra va in un angolo libero;
+- facendo partire un Intervallo con la finestra sopra la casella, la finestra
+  si sposta da sola prima del primo click.
+
+## 14. Postazione all'avvio (sul PC nuovo)
+
+Impostazioni > **Giornata**: incollare l'indirizzo del portale e scegliere il
+`.exe` del programma della stampante. Premere **Prepara la postazione adesso**.
+
+Deve succedere:
+- il portale si apre nel browser;
+- il programma della stampante parte (senza finestra) se non era già acceso;
+- una stampa dal portale va a buon fine. Se il portale dice **printer error**
+  con la stampante a posto: in Chrome, icona a sinistra dell'indirizzo >
+  Impostazioni sito > **Accesso alla rete locale** > Consenti, poi F5.
+
+---
+
 ## Esito
 
 | Passo | OK / NO | Note |
@@ -115,5 +199,12 @@ Deve succedere:
 | 5. Oltre 999 | | |
 | 6. Lotto in Etichetta | | |
 | 7. Già registrata oggi | | |
+| 8. Il .exe parte | | |
+| 9. Conto alla rovescia | | |
+| 10. Cancella | | |
+| 11. Buchi | | |
+| 12. Chiudi e riapri | | |
+| 13. Finestra sulla strada | | |
+| 14. Postazione | | |
 
 Data: ____________ PC: ____________ Chi ha fatto la prova: ____________

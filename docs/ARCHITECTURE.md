@@ -196,6 +196,20 @@ ever started — and the window stayed collapsed until the operator expanded it
 by hand to find out why the robot had gone quiet. The condition is now "is a
 verification actually running", not "is one configured".
 
+### The countdown after a lever
+
+A lever is pressed with the mouse. `startBlock()` used to set `releasing` at
+once, the worker picked the first pair within 20 ms, and the burst's first
+mouse check found the hand still leaving the mouse: the fail-safe stopped the
+block almost every time. The lever now **arms** a countdown on a Swing timer
+(`scan.startWait`, 3 s by default) and only its end sets `releasing`. While
+armed, the block already owns the HUD and its STOP, the lever reads ANNULLA
+AVVIO, the queue is not editable, a check pressed by hand waits for the block
+(`releasing || armed`) and an automatic one is not taken. RIPRENDI arms the
+same countdown when it would move the robot (continuo with pairs waiting);
+the Da file worker counts down through its hands before the pre-flight's
+first export click. `ScanCountdownTest` holds the rule.
+
 ### The three safeties of the burst
 
 A burst types into a browser nobody is watching, so it is guarded at three
@@ -300,6 +314,78 @@ by `RobotEngine`; tests pass fake hands that append to a fake portal), and in
 `FileModePanel` the `exportClick` runnable (a test writes the portal's CSV into
 the download folder, where the real `DownloadWatcher` picks it up) and the
 `confirmer` of the override questions.
+
+## The day (`DayLedger`, `GapFinder`)
+
+The day is counted the way the portal counts it: **one entry per label, the
+last thing that happened to it**. `DayLedger` (core, pure) reads the day's
+report into events — sent rows only, with their verdict and their time, a
+run past midnight still counting forward — and `resolve` keeps the last event
+of each label by time, not by file order (a scan session opened at 08:00 sits
+in the file before a range started at 09:00). A deletion is an event too, and
+a deletion the export contradicted (`ANCORA PRESENTE`) is not.
+
+`RunTableModel` holds three sources: the report as read at the start
+(`history`, what earlier starts of the app did today), this app's archived
+runs and the current run. The day view shows one row per label above the
+current run (`rebuildArchive`: a sent row beats an unsent one, the later sent
+row wins, and a label the current run holds moves down into it), and
+`day()` resolves all three for the counts. `sentToday`, which the
+"already registered today" questions ask, is the same view: a label deleted
+from the portal is not registered any more. Mutators still speak run-space;
+when a label moves between archive and run the whole table fires as changed.
+
+`GapFinder` (core, pure) splits every label the day accounts for —
+registered, deleted, or waiting in a queue — into a type (everything before the
+final run of digits, plus its width) and a number, and reports the runs of
+missing numbers. A run wider than `gap.max` is a **jump** (another stack of
+labels), never missing work. `ResultsPanel` recomputes the holes on every
+table change (coalesced, 250 ms), paints the day line red, fills the Buchi
+view and rewrites `AutoFillSuite_buchi_<date>.csv` through the report's single
+writer, only when the holes changed. The red line is the day line itself,
+never an extra row: a row appearing with the first hole squeezed the table
+under the fixed window height (the smoke walker caught it).
+
+## Cancella (`DeleteModePanel`, `DeleteBurst`)
+
+The portal deletes on the DELETE click with no question, and the label
+disappears from its export. `DeleteBurst` is `PairBurst`'s sequence for that
+form: double click on the serial field, paste, click DELETE, the mouse checked
+between every step; the DELETE click is the point of no return. The list of
+labels to delete lives in the panel and in its own file
+(`AutoFillSuite_cancella_lista.txt`, rewritten whole at every change), not in
+the results table: another mode starting a run would have moved the table's
+rows under the list. A label enters the results only when it is deleted, in a
+session of its own (`modalita=cancella`), so the report and the day see it.
+The check after the list is an Export: every deleted label must be absent
+(`RegistrationVerifier.presentCodes`), with the usual retry for a slow
+server. A label registered today asks before it is listed: deleting a good
+piece is the expensive mistake.
+
+## The window on the robot's way
+
+The collision guard used to look only when a run started. A timer in
+`MainWindow` now looks every 0.7 s, and `WindowGuard.watch` (pure) decides:
+with no job running the window **never moves by itself** — the operator may be
+dragging it — and the header turns red with **Spostala** instead, on the same
+row (an extra row would squeeze the cards); while a job runs it moves to the
+first free corner, but only when `RobotMotion.midStep()` is false. A burst
+reads where the app is before it starts and clicks back there at the end:
+moving the window in the middle would send that click to the portal.
+`PairBurst` and `DeleteBurst` count themselves in and out of `RobotMotion`.
+With automatic moving off it only warns, in the HUD too.
+
+## The workstation at the first start (`Station`)
+
+At the first start of the day (`station.lastDay`) the app opens the portal's
+address in the default browser and starts the print program, the proxy the
+portal sends its labels to on localhost. Only when nothing answers on its port
+(never twice), from its own folder, **without a window** and with its output
+redirected to a log file: a console window clicked into Select mode froze
+the program at its next log line, and the portal reported a printer error
+with a healthy printer; an unread pipe would freeze it the same way. A station
+never configured stays quiet. Browser, launcher, port probe and clock are
+injection points (`StationTest`).
 
 ## The design system (`AppTheme`)
 
@@ -454,6 +540,13 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | GlyphSafetyTest | no emoji in UI strings | empty boxes on Windows |
 | IconRenderTest | icons as pixels, hub = hole | a black disc from AlphaComposite.Clear |
 | RunTableModelTest | uncovered rows never green (GIÀ PRESENTE included); a row showing another lot than the one checked never green; a check keeps NON INVIATA and queued words; a wrong lot keeps its tail; day-view index translation | a queued pair painted OK; a queued correction painted OK with its new lot; a correction landing on history; the head of a lot shown instead of its end |
+| ScanCountdownTest | the lever counts down (banner, lever, HUD) before the first burst; ANNULLA and STOP cancel it; RIPRENDI in continuo counts down too; 0 s starts at once | the hand leaving the mouse after REGISTRA TUTTO tripping the fail-safe |
+| DayLedgerTest | sent rows only; last wins by time, not by file order; a deletion removes, a later registration brings back, a contradicted deletion is none; midnight; 8 sends of 5 labels count 5 | a restarted range counted twice |
+| GapFinderTest | holes per type with their codes; jumps are not missing work; zeros kept; 7 and 007 not neighbours | — (new: the holes of the day) |
+| DayRestoreTest | a reopened app reads the day back: count, day view, holes in red; a deleted label fills its place; a queued one too; the holes on disk | a closed app starting from zero |
+| DeleteModeTest | list, countdown, field/paste/DELETE, export check, day count; a label registered today asks; a lot refused; mouse before DELETE deletes nothing; the list survives a close; still on the portal is red; immediate mode | — (new mode) |
+| StationTest | portal and print program once a day, never twice, from its folder, output to a log; quiet when never configured | a frozen print console; an operator who never finds the portal open |
+| WindowWatchTest | the rule (warn idle, move working, wait mid-burst, warn only with moving off); the real window warns, stays, then steps aside | the window parked on Casella 1 after the run started |
 | ScanTabSupportTest | TAB submits only on the marked QR 2; QR 1, Shift+TAB, other fields untouched; a third field breaks nothing | a scanner with a TAB suffix; the "exactly two fields" rule |
 | SpinnerCommitTest | on-screen number = executed number | chose 20, printed 30 |
 | TextFitTest | overflow keeps the tail | unreadable final digits in the bar |

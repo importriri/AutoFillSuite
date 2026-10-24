@@ -22,10 +22,25 @@ the portal's records with the labels that were attempted.
 The tool is used on a production-floor Windows PC and remains a standalone Java
 8 JAR with no runtime dependencies.
 
+## Download
+
+Every release ships two files:
+
+- **`AutoFillSuite-windows.zip`** — extract the folder and open
+  `AutoFillSuite.exe`. It carries its own trimmed Java runtime: no Java and no
+  installation, so it runs on a locked-down PC without administrator rights.
+  The executable is not signed: Windows SmartScreen may ask once ("More info",
+  then "Run anyway").
+- **`AutoFillSuite.jar`** — for a PC that already has Java 8 or newer.
+
+The release workflow builds both from a tag: the JAR through `verify.sh`, then
+`jlink` with only the modules the JAR uses and `jpackage --type app-image`.
+
 ## Workflows
 
-Four modes: **Intervallo** (a range of labels), **Scansione** (scanned pairs),
-**Da file** (files from a second line) and **Stampa** (printing). A second line
+Five modes: **Intervallo** (a range of labels), **Scansione** (scanned pairs),
+**Da file** (files from a second line), **Stampa** (printing) and **Cancella**
+(spoiled labels deleted from the portal). A second line
 without a portal PC records its pairs with
 [ScanLedger](https://github.com/importriri/ScanLedger) and exports them as CSV
 files for the Da file mode.
@@ -57,6 +72,21 @@ screen) and exports a CSV in the format of
 its fingerprint, the order of the day's exports and the portal's current
 state, then registers it in verified blocks and can resume where it stopped.
 
+### Deleting spoiled labels ("Cancella")
+
+Spoiled labels are scanned into a list that is saved on disk, then deleted
+from the portal after a countdown, with the mouse checked before every DELETE
+click. An export afterwards checks that every deleted label is gone. A label
+registered today asks before it can be listed.
+
+### The day: one row per label, holes in the numbering
+
+The results panel shows the day with one row per label, counted the way the
+portal counts it (the last registration wins, deleted labels do not count),
+and rebuilt from the daily report when the app reopens. Holes in the
+numbering of each label type are listed in red; a hole of spoiled labels goes
+to the Cancella list in one click.
+
 ### Printing helper
 
 Some portal print forms ignore their quantity field and produce one label per
@@ -65,7 +95,10 @@ number of clicks with a configurable delay.
 
 ## Safety and recovery
 
-- Moving the mouse stops the current robot operation.
+- Moving the mouse stops the current robot operation; every lever pressed with
+  the mouse counts down first, so the hand leaving it is not read as a move.
+- The window is watched while the app is open: over a click target it turns
+  red while the robot is still and steps aside between bursts while it works.
 - One robot at a time: no mode starts while another one drives the mouse.
 - A pair is returned to the queue only when the save action did not happen.
 - The window checks that it is not covering one of its own click targets.
