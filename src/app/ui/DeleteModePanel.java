@@ -126,6 +126,9 @@ public class DeleteModePanel extends JPanel {
         jlist.setSelectionBackground(AppTheme.SURFACE1);
         jlist.setSelectionForeground(AppTheme.TEXT);
         jlist.setVisibleRowCount(4);
+        // an empty list asks for no height at all: a fixed row keeps the box
+        // four rows tall, so the operator sees where the labels will go
+        jlist.setFixedCellHeight(18);
         jlist.setFocusable(false);
         jlist.addListSelectionListener(e -> { if (!e.getValueIsAdjusting()) refresh(); });
         JScrollPane sc = new JScrollPane(jlist);
