@@ -36,6 +36,7 @@ public class MainWindow extends JFrame implements RunContext {
     private static final String CARD_SCAN  = "scan";
     private static final String CARD_PRINT = "print";
     private static final String CARD_FILE  = "file";
+    private static final String CARD_DELETE = "delete";
 
     private final SettingsManager cfg = SettingsManager.getInstance();
 
@@ -44,6 +45,8 @@ public class MainWindow extends JFrame implements RunContext {
     private final ScanModePanel  scanMode;
     private final PrintModePanel printMode;
     private final FileModePanel  fileMode;
+    private final DeleteModePanel deleteMode;
+    private Segmented selector;
 
     private final JPanel cards = new JPanel(new CardLayout());
     private final JPanel views = new JPanel(new CardLayout());
@@ -51,6 +54,11 @@ public class MainWindow extends JFrame implements RunContext {
     private HudPanel hud;
     private JButton btnResults, btnHud;
     private SettingsWindow settingsWindow = null;
+    // the header turns red when the window sits on the robot's way
+    private JPanel header;
+    private JLabel headerName;
+    private JButton btnMoveAside;
+    private String guardShown = null;
     private boolean resultsOpen;
     private boolean hudMode;
     private boolean autoHud = false;          // this run collapsed us, not the operator
@@ -67,31 +75,42 @@ public class MainWindow extends JFrame implements RunContext {
         scanMode  = new ScanModePanel(results, this);
         printMode = new PrintModePanel(this);
         fileMode  = new FileModePanel(results, this);
+        deleteMode = new DeleteModePanel(results, this);
 
         cards.setBackground(AppTheme.BASE);
         cards.add(rangeMode, CARD_RANGE);
         cards.add(scanMode,  CARD_SCAN);
         cards.add(printMode, CARD_PRINT);
         cards.add(fileMode,  CARD_FILE);
+        cards.add(deleteMode, CARD_DELETE);
 
         // sub-selector: three ways of doing the same job
         subSelector = new Segmented(new String[] { "Intervallo", "Scansione", "Da file" },
                                     false, 0, idx -> showCard(registerCard(idx)));
 
         // main selector: the machine's mode switch
-        Segmented selector = new Segmented(new String[] { "REGISTRA", "STAMPA" }, true, 0, idx -> {
+        selector = new Segmented(new String[] { "REGISTRA", "STAMPA", "CANCELLA" }, true, 0, idx -> {
             boolean register = idx == 0;
             subSelector.setVisible(register);
-            showCard(register ? registerCard(subSelector.getSelected()) : CARD_PRINT);
+            showCard(register ? registerCard(subSelector.getSelected())
+                     : idx == 1 ? CARD_PRINT : CARD_DELETE);
+            if (idx == 2) SwingUtilities.invokeLater(() -> deleteMode.field().requestFocusInWindow());
+        });
+        // a hole of the day, spoiled labels: the Cancella tab takes them in charge
+        results.setGapDeleter(codes -> {
+            deleteMode.addAll(codes);
+            selector.select(2);
         });
 
         // one strip across the whole width: both columns then start at the same
-        // height, so the controls and the results read as two parallel halves
-        JPanel strip = new JPanel(new GridLayout(1, 2, 8, 0));
+        // height, so the controls and the results read as two parallel halves.
+        // Three machine modes need the whole width (the results may be closed:
+        // 300 px), so the sub-selector of REGISTRA takes a row of its own
+        JPanel strip = new JPanel(new BorderLayout(0, 4));
         strip.setBackground(AppTheme.BASE);
         strip.setBorder(BorderFactory.createEmptyBorder(4, 9, 5, 9));
-        strip.add(selector);
-        strip.add(subSelector);
+        strip.add(selector, BorderLayout.NORTH);
+        strip.add(subSelector, BorderLayout.SOUTH);
 
         JPanel control = new JPanel(new BorderLayout()) {
             // width pinned, height honest — pack() must see the tallest card
@@ -138,6 +157,13 @@ public class MainWindow extends JFrame implements RunContext {
 
         if (cfg.getBool(SettingsManager.UI_HUD, false)) setHudMode(true);
 
+        // the window on the robot's way, watched while the app is open (not
+        // only when a run starts): red and a button when the robot is still,
+        // out of the way by itself while the robot works
+        Timer watch = new Timer(700, e -> watchWindow());
+        watch.setRepeats(true);
+        watch.start();
+
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) {
                 closeApp(true);
@@ -152,6 +178,13 @@ public class MainWindow extends JFrame implements RunContext {
         SwingUtilities.invokeLater(() -> {
             if (fileMode.restoreInterrupted()) subSelector.select(2);
         });
+        // the first start of the day opens the portal and the print program
+        Thread station = new Thread(() -> {
+            String said = Station.prepare(false);
+            if (said != null) SwingUtilities.invokeLater(() -> results.notice("Postazione: " + said));
+        }, "station");
+        station.setDaemon(true);
+        station.start();
     }
 
     /** How the app ends; a test replaces it to stay alive after the close. */
@@ -182,6 +215,7 @@ public class MainWindow extends JFrame implements RunContext {
         if (self != rangeMode && rangeMode.isBusy()) return "Intervallo al lavoro";
         if (self != printMode && printMode.isBusy()) return "Stampa in corso";
         if (self != fileMode && fileMode.isRunning()) return "Da file al lavoro";
+        if (self != deleteMode && deleteMode.isBusy()) return "Cancella al lavoro";
         return null;
     }
 
@@ -192,11 +226,12 @@ public class MainWindow extends JFrame implements RunContext {
         if (rangeMode.isBusy()) return "Il robot sta lavorando (Intervallo) o c'è una verifica in corso.";
         if (printMode.isBusy()) return "Il robot sta stampando.";
         if (fileMode.isRunning()) return "Il robot sta registrando un file: si fermerà e lo ritroverai da riprendere.";
+        if (deleteMode.isBusy()) return "Il robot sta cancellando etichette dal portale (o le sta controllando).";
         return null;
     }
 
     private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
+        header = new JPanel(new BorderLayout());
         header.setBackground(AppTheme.MANTLE);
         // no app name here: the window's own title bar already says it, and the
         // second copy cost a whole row on a panel that has to stay short
@@ -205,6 +240,19 @@ public class MainWindow extends JFrame implements RunContext {
         JLabel name = new JLabel("AutoFillSuite");
         name.setFont(AppTheme.F_MONO.deriveFont(10.5f));
         name.setForeground(AppTheme.OVERLAY);
+        headerName = name;
+
+        // the same row turns into the warning: no extra height, nothing clipped
+        // the same height as its neighbours: the header must not grow and squeeze the cards
+        btnMoveAside = AppTheme.secondary("Spostala", null);
+        btnMoveAside.setToolTipText("Porta la finestra in un angolo dove non copre il portale");
+        btnMoveAside.setFocusable(false);
+        btnMoveAside.setVisible(false);
+        btnMoveAside.addActionListener(e -> {
+            if (!moveAside()) {
+                headerName.setText("Nessun angolo libero: sposta il portale");
+            }
+        });
 
         btnResults = AppTheme.secondary("Risultati",
             Icons.chevron(AppTheme.ICON, AppTheme.SUBTEXT, false));
@@ -214,11 +262,7 @@ public class MainWindow extends JFrame implements RunContext {
         JButton gear = AppTheme.iconButton(
             Icons.gear(AppTheme.ICON + 2, AppTheme.SUBTEXT), "Impostazioni");
         gear.setToolTipText("Impostazioni");
-        gear.addActionListener(e -> {
-            if (settingsWindow == null) settingsWindow = new SettingsWindow(this);
-            settingsWindow.setVisible(true);
-            settingsWindow.toFront();
-        });
+        gear.addActionListener(e -> openSettings(null));
 
         btnHud = AppTheme.secondary("HUD", Icons.chevron(AppTheme.ICON, AppTheme.SUBTEXT, true));
         btnHud.setToolTipText("Riduci alla barra bassa");
@@ -226,11 +270,12 @@ public class MainWindow extends JFrame implements RunContext {
 
         JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         east.setOpaque(false);
+        east.add(btnMoveAside);
         east.add(btnHud);
         east.add(btnResults);
         east.add(gear);
 
-        header.add(name, BorderLayout.WEST);
+        header.add(name, BorderLayout.CENTER);
         header.add(east, BorderLayout.EAST);
         return header;
     }
@@ -284,11 +329,96 @@ public class MainWindow extends JFrame implements RunContext {
             { SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y },
             { SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y },
             { SettingsManager.PRINT_COORD_X, SettingsManager.PRINT_COORD_Y },
+            { SettingsManager.DEL_COORD_X, SettingsManager.DEL_COORD_Y },
+            { SettingsManager.DEL_BUTTON_X, SettingsManager.DEL_BUTTON_Y },
         };
         for (String[] k : keys) {
             if (cfg.isSet(k[0], k[1])) out.add(new Point(cfg.getInt(k[0], -1), cfg.getInt(k[1], -1)));
         }
         return out;
+    }
+
+    /** Every memorized coordinate with the name the operator knows it by. */
+    private Map<String, Point> namedTargets() {
+        Map<String, Point> out = new java.util.LinkedHashMap<>();
+        String[][] keys = {
+            { "Casella 1", SettingsManager.REG_COORD_X, SettingsManager.REG_COORD_Y },
+            { "Export CSV", SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y },
+            { "Casella 1 (scansione)", SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y },
+            { "Tasto Stampa", SettingsManager.PRINT_COORD_X, SettingsManager.PRINT_COORD_Y },
+            { "Casella Cancella", SettingsManager.DEL_COORD_X, SettingsManager.DEL_COORD_Y },
+            { "Tasto DELETE", SettingsManager.DEL_BUTTON_X, SettingsManager.DEL_BUTTON_Y },
+        };
+        for (String[] k : keys) {
+            if (cfg.isSet(k[1], k[2])) out.put(k[0], new Point(cfg.getInt(k[1], -1), cfg.getInt(k[2], -1)));
+        }
+        return out;
+    }
+
+    /**
+     * Every 0.7 s: does the window (cockpit or bar) cover a coordinate the
+     * robot clicks? The robot would click the APP instead of the portal.
+     */
+    void watchWindow() {
+        if (!isShowing()) return;
+        Map<String, Point> targets = namedTargets();
+        boolean working = stopAction != null || app.core.RobotGate.owner() != null;
+        // the settings never stay in the robot's way while it works
+        if (working && settingsWindow != null && settingsWindow.isShowing()
+                && !WindowGuard.collisions(settingsWindow.getBounds(), targets).isEmpty()) {
+            settingsWindow.setVisible(false);
+        }
+        List<String> hits = WindowGuard.collisions(getBounds(), targets);
+        WindowGuard.Watch w = WindowGuard.watch(cfg.getBool(SettingsManager.GUARD_ENABLED, true),
+            cfg.getBool(SettingsManager.GUARD_AUTOMOVE, true), working,
+            app.core.RobotMotion.midStep(), hits);
+        switch (w) {
+            case CLEAR: showGuard(null); break;
+            case WARN:  showGuard(hits); break;
+            case MOVE:  showGuard(moveAside() ? null : hits); break;
+            default:    break;   // mid-burst: at the next pause
+        }
+    }
+
+    /** Out of the robot's way, into the first free corner. false = no corner is free. */
+    private boolean moveAside() {
+        Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+        Point safe = WindowGuard.safeLocation(getBounds(), namedTargets().values(), screen);
+        if (safe == null) return false;
+        setLocation(safe);
+        return true;
+    }
+
+    /** Red header (and red bar in the HUD) naming what is covered; null = all clear. */
+    private void showGuard(List<String> hits) {
+        String text = (hits == null || hits.isEmpty()) ? null
+            : "Copro: " + String.join(", ", hits);
+        if (java.util.Objects.equals(text, guardShown)) return;
+        guardShown = text;
+        boolean on = text != null;
+        header.setBackground(on ? AppTheme.RED : AppTheme.MANTLE);
+        headerName.setText(on ? text : "AutoFillSuite");
+        headerName.setFont(on ? AppTheme.F_BOLD : AppTheme.F_MONO.deriveFont(10.5f));
+        headerName.setForeground(on ? AppTheme.ON_ACCENT : AppTheme.OVERLAY);
+        headerName.setToolTipText(on ? "La finestra copre " + String.join(", ", hits)
+            + ": il robot cliccherebbe sull'app invece che sul portale. Spostala." : null);
+        btnMoveAside.setVisible(on);
+        hud.warn(on ? "SPOSTAMI — " + text : null);
+        if (hudMode) {
+            // the bar grows by the warning's row, measured like at its birth
+            Insets in = getInsets();
+            int h = hud.getPreferredSize().height + in.top + in.bottom;
+            setMinimumSize(new Dimension(HUD_W, h));
+            setSize(HUD_W, h);
+        }
+        if (on) app.core.Sounds.error();
+        header.revalidate();
+        header.repaint();
+    }
+
+    /** What the header warns about now, or null (the tests read it). */
+    String guardWarning() {
+        return guardShown;
     }
 
     /** Collapse to the bar (or back). Remembers where the cockpit was. */
@@ -333,6 +463,14 @@ public class MainWindow extends JFrame implements RunContext {
     }
 
     // ── RunContext ─────────────────────────────────────────────────────────
+
+    @Override
+    public void openSettings(String tab) {
+        if (settingsWindow == null) settingsWindow = new SettingsWindow(this);
+        if (tab != null) settingsWindow.selectTab(tab);
+        settingsWindow.setVisible(true);
+        settingsWindow.toFront();
+    }
 
     @Override
     public String blockingCollision(Map<String, Point> targets) {

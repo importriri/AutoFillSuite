@@ -295,6 +295,7 @@ public class RangeModePanel extends JPanel {
         int cy = cfg.getInt(SettingsManager.REG_COORD_Y, -1);
         if (!cfg.isSet(SettingsManager.REG_COORD_X, SettingsManager.REG_COORD_Y)) {
             warn("Memorizza «Casella 1» nelle Impostazioni.");
+            ctx.openSettings("A intervallo");
             return;
         }
         if (same > 0) status.setString(same + " etichette già registrate oggi con lo stesso lotto: reinvio");
@@ -545,6 +546,7 @@ public class RangeModePanel extends JPanel {
         int ey = cfg.getInt(SettingsManager.REG_EXPORT_COORD_Y, -1);
         if (!cfg.isSet(SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y)) {
             warn("Memorizza «Export CSV» nelle Impostazioni.");
+            ctx.openSettings("Verifica");
             return;
         }
 

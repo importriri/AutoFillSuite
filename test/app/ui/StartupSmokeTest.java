@@ -145,6 +145,29 @@ public final class StartupSmokeTest {
             check("the print card greets with its state banner",
                   findLabelByPrefix(main, "PRONTO") != null);
         }
+        // the third machine mode: spoiled labels deleted from the portal
+        JButton cancella = findButton(main, "CANCELLA");
+        check("the main selector offers CANCELLA", cancella != null);
+        if (cancella != null) {
+            SwingUtilities.invokeAndWait(cancella::doClick);
+            Thread.sleep(200);
+            check("the Cancella card is not clipped", nothingClipped(main));
+            check("the Cancella card offers its red lever",
+                  findButtonByPrefix(main, "CANCELLA DAL PORTALE") != null);
+        }
+        // only where the results are open (the saved run closed them at exit)
+        boolean resultsShown = findButtonByPrefix(main, "Ultimo giro") != null;
+        JButton buchi = resultsShown ? findButtonByPrefix(main, "Buchi") : null;
+        if (resultsShown) {
+            check("the results panel offers the holes of the day", buchi != null);
+        }
+        if (buchi != null) {
+            SwingUtilities.invokeAndWait(buchi::doClick);
+            Thread.sleep(150);
+            check("the holes view is not clipped", nothingClipped(main));
+            JButton ultimo = findButton(main, "Ultimo giro");
+            if (ultimo != null) SwingUtilities.invokeAndWait(ultimo::doClick);
+        }
         JButton registra = findButton(main, "REGISTRA");
         JButton scans = findButton(main, "Scansione");
         if (registra != null && scans != null) {
@@ -231,6 +254,9 @@ public final class StartupSmokeTest {
                         // is the other half of what is being tested.
                         app.config.SettingsManager cfg = app.config.SettingsManager.getInstance();
                         cfg.set(app.config.SettingsManager.SCAN_COORD_X, -1);
+                        // the countdown before a block is ScanCountdownTest's
+                        // business: one second keeps this walk inside its waits
+                        cfg.set(app.config.SettingsManager.SCAN_START_WAIT, 1);
                         cfg.save();
 
                         final int cockpitH = main.getHeight();

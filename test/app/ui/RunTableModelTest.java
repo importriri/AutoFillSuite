@@ -28,6 +28,9 @@ public final class RunTableModelTest {
         dayView_archivesRunsAndTranslatesIndexes();
         dayView_reportNeverReadsHistory();
         dayView_rollsOverAtMidnight();
+        dayView_oneRowPerLabel_lastWins();
+        dayView_labelMovesFromArchiveToCurrentRun();
+        dayView_historyFromTheReport_andDeletions();
         alreadyPresent_isGreenOnlyWhenAVerificationCoversIt();
         wrongLot_showsTheTail_andTheWholeLotOnHover();
         correctionNotYetSent_isNeverGreen_withTheNewLot();
@@ -349,6 +352,79 @@ public final class RunTableModelTest {
         m.setDayView(true);
         check("yesterday's rows do not survive the rollover",
               m.getRowCount() == 0 && m.dayArchivedCount() == 0);
+    }
+
+    // a range of 5 stopped after 3 and started again: the day view used to show
+    // 8 rows and the operator read 8. one row per label, the last one wins
+    private static void dayView_oneRowPerLabel_lastWins() {
+        RunTableModel m = new RunTableModel();
+        m.beginRun("L1");
+        for (String c : new String[] { "A001", "A002", "A003" }) {
+            int r = m.addRow(c, "L1");
+            m.markSentNow(r);
+        }
+        m.beginRun("L1");
+        for (String c : new String[] { "A001", "A002", "A003", "A004", "A005" }) {
+            int r = m.addRow(c, "L1");
+            m.markSentNow(r);
+        }
+        m.setDayView(true);
+        check("a restarted range shows each label once", m.getRowCount() == 5);
+        check("the day counts 5 labels, not 8", m.dayCounts()[0] == 5);
+        m.beginRun("L1");                       // the second run joins the archive too
+        check("archived twice, still once each", m.getRowCount() == 5 && m.dayArchivedCount() == 5);
+    }
+
+    private static void dayView_labelMovesFromArchiveToCurrentRun() {
+        RunTableModel m = new RunTableModel();
+        m.beginRun("L1");
+        int a = m.addRow("A001", "L1");
+        m.markSentNow(a);
+        m.addRow("A002", "L1");
+        m.beginRun("L2");
+        m.setDayView(true);
+        check("two labels in the archive", m.getRowCount() == 2);
+        int b = m.addRow("A001", "L2");
+        check("a label scanned again leaves the archive", m.getRowCount() == 2 && m.dayOffset() == 1);
+        check("and shows in the current run with its new lot", "L2".equals(m.getValueAt(1, 2)));
+        check("a run-space index still lands on the current run", b == 0);
+        m.removeQueuedPair(b);
+        check("removed from the queue, it comes back up from the archive",
+              m.getRowCount() == 2 && m.dayOffset() == 2);
+    }
+
+    private static void dayView_historyFromTheReport_andDeletions() {
+        RunTableModel m = new RunTableModel();
+        java.util.List<String> report = Arrays.asList(
+            "RUN;" + java.time.LocalDate.now() + ";08:00:00;lotto=L1;modalita=intervallo",
+            "Etichetta;Lotto;OraInvio;Esito;Registrazioni;Dettaglio",
+            "A001;L1;08:00:05;OK;1;",
+            "A002;L1;08:00:07;LOTTO ERRATO;0;trovato: X",
+            "",
+            "RUN;" + java.time.LocalDate.now() + ";09:00:00;lotto=-;modalita=cancella",
+            "Etichetta;Lotto;OraInvio;Esito;Registrazioni;Dettaglio",
+            "A003;;09:00:02;CANCELLATA;0;");
+        m.setHistory(app.core.DayLedger.fromReport(report));
+        m.beginRun("");
+        m.setDayView(true);
+        check("the report of earlier starts fills the day view", m.getRowCount() == 3);
+        check("history keeps its verdicts", m.stateAt(0) == RunTableModel.OK && m.stateAt(1) == RunTableModel.WRONG);
+        check("a deleted label is grey, not red", m.stateAt(2) == RunTableModel.DELETED);
+        check("the day counts 2 registered and 1 deleted",
+              m.dayCounts()[0] == 2 && m.dayCounts()[1] == 1);
+        check("registered today forgets the deleted label",
+              m.sentToday().containsKey("A001") && !m.sentToday().containsKey("A003"));
+
+        m.beginDeleteRun();
+        int d = m.addRow("A001", "");
+        m.markDeleted(d);
+        check("a deletion made now takes the label off the count",
+              m.dayCounts()[0] == 1 && m.dayCounts()[1] == 2);
+        check("the deletion run files its rows as deletions",
+              m.reportEntries().get(0).delete);
+        m.markDeleteChecked(d, false);
+        check("a deletion the export contradicts gives the label back",
+              m.dayCounts()[0] == 2 && m.stateAt(m.getRowCount() - 1) == RunTableModel.MISSING);
     }
 
     private static void check(String name, boolean cond) {

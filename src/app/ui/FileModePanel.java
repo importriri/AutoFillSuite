@@ -489,6 +489,7 @@ public class FileModePanel extends JPanel {
         int cy = cfg.getInt(SettingsManager.SCAN_COORD_Y, -1);
         if (!cfg.isSet(SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y)) {
             error("Memorizza la coordinata della Scansione nelle Impostazioni");
+            ctx.openSettings("A scansione");
             return;
         }
         int ex = cfg.getInt(SettingsManager.REG_EXPORT_COORD_X, -1);
@@ -496,6 +497,7 @@ public class FileModePanel extends JPanel {
         if (!cfg.isSet(SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y)
                 && exportClick == null) {
             error("Memorizza «Export CSV» nelle Impostazioni (tab Verifica): serve per pre-volo e verifica");
+            ctx.openSettings("Verifica");
             return;
         }
         String blocked = ctx.blockingCollision(targets(cx, cy));
@@ -545,6 +547,20 @@ public class FileModePanel extends JPanel {
     private void work() {
         String stopWhy = null;
         try {
+            // the lever was a mouse click: the first export click or burst must
+            // not land under the hand that is still leaving the mouse
+            int secs = Math.max(0, Math.min(10, cfg.getInt(SettingsManager.SCAN_START_WAIT, 3)));
+            for (int left = secs; left > 0; left--) {
+                if (stopRequested) { stopWhy = "STOP"; return; }
+                final int n = left;
+                SwingUtilities.invokeLater(() -> {
+                    state(AppTheme.PEACH, AppTheme.ON_ACCENT, "PARTO TRA " + n + "s — togli la mano dal mouse");
+                    ctx.jobProgress(AppTheme.PEACH, "PARTO TRA " + n + "s", "0 / " + jobs.size(),
+                                    "togli la mano dal mouse", 0, true);
+                });
+                hands.sleep(1000);
+            }
+            if (stopRequested) { stopWhy = "STOP"; return; }
             if (preflightRequired() && !preflightDone) {
                 String problem = preflight();
                 if (problem != null) { stopWhy = problem; return; }

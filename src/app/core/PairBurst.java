@@ -85,6 +85,7 @@ public final class PairBurst {
                               Timing t, boolean guarded, BeforeEnter before, AfterEnter after)
             throws InterruptedException {
         boolean entered = false;
+        RobotMotion.begin();
         try {
             h.doubleClick(target.x, target.y);
             h.sleep(t.focus);
@@ -121,6 +122,8 @@ public final class PairBurst {
             // click, a sleep) must not read as "not sent" — that would send it
             // twice. It counts, and the robot stops.
             return entered ? Outcome.SENT_THEN_GRABBED : Outcome.FAILED;
+        } finally {
+            RobotMotion.end();
         }
     }
 }

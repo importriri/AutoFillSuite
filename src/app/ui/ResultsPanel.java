@@ -39,7 +39,6 @@ public class ResultsPanel extends JPanel {
     private String runDate  = today();
     // the day's report as read at the start (or at the day change): see registeredToday
     private String sentOnDiskDay = today();
-    private Map<String, String[]> sentOnDisk = readSentOnDisk(sentOnDiskDay);
     private String runMode  = "-";
     private String runLot   = "-";
     private boolean reportWritten = false;
@@ -72,6 +71,22 @@ public class ResultsPanel extends JPanel {
     private final JLabel banner    = AppTheme.banner();
     private final JLabel lblHint   = new JLabel("", SwingConstants.CENTER);
     private final JLabel lblFooter = new JLabel("", SwingConstants.CENTER);
+    // the day in one line, always in sight: every label once, as the portal counts
+    private final JLabel lblDay = new JLabel(" ", SwingConstants.CENTER);
+    // the holes of the day turn the same line red: no extra row, nothing squeezed
+    private String gapAlert = null;
+    private final JPanel center = new JPanel(new CardLayout());
+    private static final String CENTER_TABLE = "table", CENTER_GAPS = "gaps";
+    private static final int VIEW_RUN = 0, VIEW_DAY = 1, VIEW_GAPS = 2;
+    private Segmented viewSel;
+    private final GapTableModel gapModel = new GapTableModel();
+    private final JTable gapTable = new JTable(gapModel);
+    private final JButton btnGapDelete = AppTheme.secondary("Cancella dal portale",
+        Icons.cross(AppTheme.ICON, AppTheme.SUBTEXT));
+    private java.util.List<app.core.GapFinder.Gap> gaps = new java.util.ArrayList<>();
+    private String gapsCsvWritten = null;
+    private String gapsDay = null;
+    private java.util.function.Consumer<java.util.List<String>> gapDeleter;
     private final JButton btnRetry  = AppTheme.primary("RIPROVA", AppTheme.BLUE,
         Icons.retry(AppTheme.ICON, AppTheme.ON_ACCENT));
     private final JButton btnCancel = AppTheme.primary("ANNULLA", AppTheme.RED,
@@ -94,7 +109,10 @@ public class ResultsPanel extends JPanel {
         setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, AppTheme.SURFACE1));
 
         add(buildHead(onClose), BorderLayout.NORTH);
-        add(buildTable(), BorderLayout.CENTER);
+        center.setOpaque(false);
+        center.add(buildTable(), CENTER_TABLE);
+        center.add(buildGaps(), CENTER_GAPS);
+        add(center, BorderLayout.CENTER);
         add(buildFoot(), BorderLayout.SOUTH);
 
         btnRetry.addActionListener(e -> onRetry.run());
@@ -111,7 +129,16 @@ public class ResultsPanel extends JPanel {
         btnPendingNo.setVisible(false);
         btnQueueEdit.setVisible(false);
         btnQueueDelete.setVisible(false);
+        // what earlier starts of the app did today: the day reopens as it was left
+        model.setHistory(readHistory(sentOnDiskDay));
+        model.addTableModelListener(e -> dayChanged());
         idle();
+        if (model.dayArchivedCount() > 0) {
+            // the app was closed (or fell) with work done today: the day line
+            // already counts it, and the day view lists it
+            lblHint.setText("Giornata riaperta: in «Oggi» c'è tutto quello che hai fatto prima");
+        }
+        refreshDay();
     }
 
     /** The active mode owns these: it knows what a retry means right now. */
@@ -149,19 +176,161 @@ public class ResultsPanel extends JPanel {
 
         boolean day = cfg.getBool(SettingsManager.UI_RESULTS_DAY, false);
         model.setDayView(day);
-        Segmented view = new Segmented(
-            new String[] { "Ultimo giro", "Oggi" }, false, day ? 1 : 0, i -> {
-                model.setDayView(i == 1);
-                cfg.set(SettingsManager.UI_RESULTS_DAY, i == 1);
-                cfg.save();
-                scrollToLast();
-            });
-        JPanel viewRow = new JPanel(new BorderLayout());
+        viewSel = new Segmented(
+            new String[] { "Ultimo giro", "Oggi", "Buchi" }, false, day ? VIEW_DAY : VIEW_RUN,
+            this::showView);
+        JPanel viewRow = new JPanel();
+        viewRow.setLayout(new BoxLayout(viewRow, BoxLayout.Y_AXIS));
         viewRow.setOpaque(false);
         viewRow.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
-        viewRow.add(view, BorderLayout.CENTER);
+        viewSel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        viewRow.add(viewSel);
+        // one plain line, the same height red or not: a row that appears with
+        // the first hole would squeeze the table under a fixed window height
+        lblDay.setFont(AppTheme.F_BOLD);
+        lblDay.setForeground(AppTheme.SUBTEXT);
+        lblDay.setOpaque(true);
+        lblDay.setBackground(AppTheme.MANTLE);
+        lblDay.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
+        lblDay.setAlignmentX(Component.CENTER_ALIGNMENT);
+        lblDay.setMaximumSize(new Dimension(Integer.MAX_VALUE, lblDay.getPreferredSize().height + 8));
+        lblDay.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (gapAlert != null) viewSel.select(VIEW_GAPS);
+            }
+        });
+        JPanel dayBox = new JPanel(new BorderLayout());
+        dayBox.setOpaque(false);
+        dayBox.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+        dayBox.add(lblDay, BorderLayout.CENTER);
+        dayBox.setAlignmentX(Component.CENTER_ALIGNMENT);
+        viewRow.add(dayBox);
         head.add(viewRow, BorderLayout.SOUTH);
         return head;
+    }
+
+    /** The segments: the last run, the whole day, the holes of the day. */
+    private void showView(int i) {
+        if (i == VIEW_GAPS) {
+            ((CardLayout) center.getLayout()).show(center, CENTER_GAPS);
+            refreshGapButton();
+            return;
+        }
+        ((CardLayout) center.getLayout()).show(center, CENTER_TABLE);
+        model.setDayView(i == VIEW_DAY);
+        cfg.set(SettingsManager.UI_RESULTS_DAY, i == VIEW_DAY);
+        cfg.save();
+        scrollToLast();
+    }
+
+    /** The Cancella tab takes these labels in charge (MainWindow wires it). */
+    public void setGapDeleter(java.util.function.Consumer<java.util.List<String>> d) {
+        gapDeleter = d;
+        refreshGapButton();
+    }
+
+    private JPanel buildGaps() {
+        gapTable.setRowHeight(21);
+        gapTable.setShowGrid(false);
+        gapTable.setIntercellSpacing(new Dimension(0, 0));
+        gapTable.setBackground(AppTheme.BASE);
+        gapTable.setForeground(AppTheme.TEXT);
+        gapTable.setSelectionBackground(AppTheme.SURFACE1);
+        gapTable.setSelectionForeground(AppTheme.TEXT);
+        gapTable.setFont(AppTheme.F_UI);
+        gapTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JTableHeader h = gapTable.getTableHeader();
+        h.setFont(AppTheme.F_SMALL.deriveFont(Font.BOLD));
+        h.setBackground(AppTheme.MANTLE);
+        h.setForeground(AppTheme.OVERLAY);
+        h.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, AppTheme.SURFACE1));
+        h.setReorderingAllowed(false);
+        gapTable.getColumnModel().getColumn(0).setPreferredWidth(140);
+        gapTable.getColumnModel().getColumn(1).setPreferredWidth(70);
+        gapTable.getColumnModel().getColumn(2).setPreferredWidth(70);
+        gapTable.getColumnModel().getColumn(3).setPreferredWidth(70);
+        gapTable.setDefaultRenderer(Object.class, new GapRenderer(gapModel));
+        gapTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) refreshGapButton();
+        });
+        gapTable.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() != 2) return;
+                int r = gapTable.rowAtPoint(e.getPoint());
+                if (r < 0) return;
+                app.core.GapFinder.Gap g = gapModel.at(gapTable.convertRowIndexToModel(r));
+                String text = g.fromCode.equals(g.toCode) ? g.fromCode : g.fromCode + " - " + g.toCode;
+                Toolkit.getDefaultToolkit().getSystemClipboard()
+                       .setContents(new StringSelection(text), null);
+                lblHint.setText("Copiato negli appunti: " + text);
+            }
+        });
+        JScrollPane sc = new JScrollPane(gapTable);
+        sc.setPreferredSize(new Dimension(RESULTS_MIN_W, 110));
+        sc.setBorder(BorderFactory.createEmptyBorder(0, 9, 0, 9));
+        sc.getViewport().setBackground(AppTheme.BASE);
+        AppTheme.styleScroll(sc);
+
+        JLabel how = AppTheme.hint("Rosso = numeri saltati tra due etichette registrate. Registrale, "
+            + "oppure, se sono rovinate, cancellale dal portale: il buco sparisce.");
+        how.setBorder(BorderFactory.createEmptyBorder(4, 10, 2, 10));
+        btnGapDelete.addActionListener(e -> deleteSelectedGap());
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 2));
+        btns.setOpaque(false);
+        btns.add(btnGapDelete);
+        JPanel south = new JPanel(new BorderLayout());
+        south.setOpaque(false);
+        south.add(how, BorderLayout.CENTER);
+        south.add(btns, BorderLayout.SOUTH);
+
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.add(sc, BorderLayout.CENTER);
+        p.add(south, BorderLayout.SOUTH);
+        return p;
+    }
+
+    private void refreshGapButton() {
+        int r = gapTable.getSelectedRow();
+        app.core.GapFinder.Gap g = r < 0 ? null : gapModel.at(gapTable.convertRowIndexToModel(r));
+        btnGapDelete.setEnabled(gapDeleter != null && g != null && !g.jump);
+        btnGapDelete.setToolTipText(g == null ? "Seleziona un buco rosso"
+            : g.jump ? "Un salto di numerazione non è un buco: non si cancella"
+            : "Manda le " + g.count() + " etichette del buco al tab Cancella");
+    }
+
+    /** The selected hole goes to the Cancella tab, after a question that says how many. */
+    private void deleteSelectedGap() {
+        int r = gapTable.getSelectedRow();
+        if (r < 0 || gapDeleter == null) return;
+        app.core.GapFinder.Gap g = gapModel.at(gapTable.convertRowIndexToModel(r));
+        if (g.jump) return;
+        String range = g.fromCode.equals(g.toCode) ? g.fromCode : g.fromCode + "\n" + "fino a " + g.toCode;
+        if (!gapConfirmer.test("Mandare al tab Cancella " + g.count()
+                + (g.count() == 1 ? " etichetta" : " etichette") + "?\n\n" + range
+                + "\n\nFallo solo se sono rovinate o buttate: verranno CANCELLATE dal portale"
+                + " quando premi CANCELLA nel tab.")) return;
+        gapDeleter.accept(g.codes());
+    }
+
+    /** Answers the gap question; a test answers it. */
+    java.util.function.Predicate<String> gapConfirmer =
+        m -> SafeConfirm.ask(this, m, "Cancella il buco");
+
+    /** The holes now (the tests read them). */
+    java.util.List<app.core.GapFinder.Gap> gaps() {
+        return gaps;
+    }
+
+    /** Select a hole by index and press its button (the tests do). */
+    void deleteGap(int index) {
+        gapTable.getSelectionModel().setSelectionInterval(index, index);
+        deleteSelectedGap();
+    }
+
+    /** What the red strip says, or null when it is hidden (the tests read it). */
+    String gapAlertText() {
+        return gapAlert;
     }
 
     private JScrollPane buildTable() {
@@ -299,8 +468,11 @@ public class ResultsPanel extends JPanel {
 
     public void addLiveRow(String code, int done) {
         touchJournal();
-        model.addRow(code);
-        model.markSentNow(model.getRowCount() - 1);
+        // the RUN index: in day view the archive sits above, and the visual
+        // index (getRowCount() - 1) pointed past the run — the row was never
+        // marked sent, and a range in day view looked unsent to everybody
+        int row = model.addRow(code);
+        model.markSentNow(row);
         setBanner(AppTheme.SURFACE2, AppTheme.TEXT, "RUN IN CORSO — " + done + "/" + total);
         scrollToLast();
     }
@@ -355,6 +527,120 @@ public class ResultsPanel extends JPanel {
         buttons(false, false);
     }
 
+    // ── delete session ("Cancella") ────────────────────────────────────────
+
+    /**
+     * A session of its own for the labels deleted from the portal: its rows
+     * go to the day's report as deletions (modalita=cancella), and the day
+     * stops counting them as registered.
+     */
+    public void beginDeleteSession() {
+        newOwner();
+        queueEditMode = false;
+        refreshQueueActions();
+        flushJournal();
+        runStamp = nextRunStamp();
+        runDate  = today();
+        runMode  = app.core.DayLedger.MODE_DELETE;
+        runLot   = "-";
+        reportWritten = false;
+        total = 0;
+        model.beginDeleteRun();
+        setBanner(AppTheme.SURFACE2, AppTheme.TEXT, "CANCELLA");
+        lblHint.setText("Le etichette in lista spariscono dal portale quando premi CANCELLA");
+        lblFooter.setText("");
+        buttons(false, false);
+    }
+
+    /** The table holds a Cancella session now. */
+    public boolean isDeleteSession() {
+        return app.core.DayLedger.MODE_DELETE.equals(runMode);
+    }
+
+    /** A label put in the list: on disk at once (IN CODA), so a closed app finds it again. */
+    public int addDeleteRow(String code) {
+        int row = model.addRow(code, "");
+        model.updateOutcome(row, "DA CANCELLARE");
+        touchJournal();
+        scrollToLast();
+        return row;
+    }
+
+    /** Off the list before the robot got to it. */
+    public boolean removeDeleteRow(int row) {
+        boolean removed = model.removeQueuedPair(row);
+        if (removed) touchJournal();
+        return removed;
+    }
+
+    /** The robot clicked DELETE on this label. */
+    public void markDeleted(int row) {
+        touchJournal();
+        model.markDeleted(row);
+    }
+
+    public void deleteCounters(int waiting, int deleted) {
+        setBanner(AppTheme.SURFACE2, AppTheme.TEXT,
+                  "CANCELLA — in lista: " + waiting + " · cancellate: " + deleted);
+    }
+
+    public void showDeleteChecking() {
+        setBanner(AppTheme.BLUE, AppTheme.ON_ACCENT, "CONTROLLO SUL PORTALE...");
+        lblHint.setText("Attendo l'export dal sito...");
+        buttons(false, false);
+    }
+
+    /**
+     * The export after the deletions: every deleted label must be gone from it.
+     * @param checked run rows the check covered, with true = gone from the export
+     */
+    public void showDeleteOutcome(Map<Integer, Boolean> checked, java.util.Set<String> stillThere,
+                                  String fileName, int attempts) {
+        int gone = 0;
+        for (Map.Entry<Integer, Boolean> e : checked.entrySet()) {
+            model.markDeleteChecked(e.getKey(), e.getValue());
+            if (e.getValue()) gone++;
+        }
+        int bad = checked.size() - gone;
+        lastFile = fileName; lastAttempts = attempts; lastFresh = true;
+        if (bad == 0) {
+            setBanner(AppTheme.GREEN, AppTheme.ON_ACCENT, "CANCELLATE — " + gone + "/" + checked.size());
+            lblHint.setText("Il portale non le ha più: il conteggio di oggi è aggiornato");
+        } else {
+            setBanner(AppTheme.RED, AppTheme.ON_ACCENT, bad + " ANCORA SUL PORTALE");
+            lblHint.setText("Righe rosse: il portale le ha ancora. Controlla e rimettile in lista");
+        }
+        lblFooter.setText("file: " + fileName + " · tentativi: " + attempts);
+        buttons(true, false);
+        writeDeleteReport(stillThere);
+    }
+
+    public void showDeleteFailure(String reason) {
+        setBanner(AppTheme.RED, AppTheme.ON_ACCENT, "CONTROLLO NON RIUSCITO");
+        lblFooter.setText(reason);
+        lblHint.setText("Le cancellazioni sono fatte: il controllo si può ripetere");
+        buttons(true, false);
+    }
+
+    private void writeDeleteReport(java.util.Set<String> stillThere) {
+        File out = reportFile();
+        List<RunReport.Entry> entries = model.reportEntries();
+        int gone = 0;
+        for (RunReport.Entry e : entries) if (e.sentAt != null && !stillThere.contains(e.code)) gone++;
+        List<String> section = new java.util.ArrayList<>();
+        section.add(RunReport.sectionHead(runDate, runStamp, runLot, runMode));
+        section.addAll(RunReport.lines(RunReport.deleteCsv(entries, stillThere).trim()));
+        section.add("CANCELLAZIONI;" + gone + "/" + entries.size());
+        section.add(RunReport.verifyLine(newStamp(), lastFile, lastAttempts, lastFresh));
+        section.add("Aggiornato;" + today() + " " + newStamp());
+        try {
+            writeMerged(out, RunReport.sectionKey(runDate, runStamp), section);
+            reportWritten = true;
+        } catch (IOException ex) {
+            lblHint.setText("Report NON salvato: " + ex.getMessage());
+        }
+    }
+
     /** One row of the file, with the word that says what will happen to it. */
     public int addFileRow(String code, String lot, String outcome) {
         int row = model.addRow(code, lot);
@@ -377,25 +663,114 @@ public class ResultsPanel extends JPanel {
      * day stay in its day archive), so nothing is lost by not reading again.
      */
     public Map<String, String[]> registeredToday() {
-        String day = today();
-        if (!day.equals(sentOnDiskDay)) {
-            sentOnDisk = readSentOnDisk(day);
-            sentOnDiskDay = day;
-        }
-        Map<String, String[]> out = new java.util.LinkedHashMap<>(sentOnDisk);
-        out.putAll(model.sentToday());
-        return out;
+        reloadIfNewDay();
+        return model.sentToday();
     }
 
-    private static Map<String, String[]> readSentOnDisk(String day) {
+    /** Past midnight the history of the start is yesterday's: read today's. */
+    private void reloadIfNewDay() {
+        String day = today();
+        if (day.equals(sentOnDiskDay)) return;
+        sentOnDiskDay = day;
+        model.setHistory(readHistory(day));
+    }
+
+    private static List<app.core.DayLedger.Event> readHistory(String day) {
         File rep = app.config.AppFiles.dailyReport(day);
-        if (!rep.exists()) return java.util.Collections.emptyMap();
+        if (!rep.exists()) return new java.util.ArrayList<>();
         try {
-            return RunReport.sentToday(Files.readAllLines(rep.toPath(), StandardCharsets.UTF_8));
+            return app.core.DayLedger.fromReport(Files.readAllLines(rep.toPath(), StandardCharsets.UTF_8));
         } catch (IOException e) {
             System.err.println("[results] report not readable: " + e.getMessage());
-            return java.util.Collections.emptyMap();
+            return new java.util.ArrayList<>();
         }
+    }
+
+    // ── the day in one line ────────────────────────────────────────────────
+
+    private final javax.swing.Timer dayTimer = new javax.swing.Timer(250, e -> refreshDay());
+    { dayTimer.setRepeats(false); }
+
+    /** Any change in the table: the day line follows, coalesced (a burst is many rows). */
+    private void dayChanged() {
+        dayTimer.restart();
+    }
+
+    /** Registered and deleted labels of the whole day, each once. */
+    void refreshDay() {
+        reloadIfNewDay();
+        int[] c = model.dayCounts();
+        afterDayRefresh();
+        String text = "OGGI: " + c[0] + (c[0] == 1 ? " registrata" : " registrate");
+        if (c[1] > 0) text += " · " + c[1] + (c[1] == 1 ? " cancellata" : " cancellate");
+        if (gapAlert != null) text += " · " + gapAlert;
+        lblDay.setText(text);
+        boolean red = gapAlert != null;
+        lblDay.setBackground(red ? AppTheme.RED : AppTheme.MANTLE);
+        lblDay.setForeground(red ? AppTheme.ON_ACCENT : AppTheme.SUBTEXT);
+        lblDay.setCursor(red ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+        lblDay.setToolTipText(red
+            ? "Numeri saltati tra etichette registrate dello stesso tipo: clicca per vederli"
+            : "Ogni etichetta contata una volta sola: vale l'ultima registrazione, "
+              + "come sul portale. Le cancellate non contano.");
+    }
+
+    /**
+     * The holes of the day from every label the day accounts for: registered,
+     * deleted from the portal, or waiting in a queue. Red strip, red segment,
+     * and the file of the day's holes, rewritten only when they change.
+     */
+    private void afterDayRefresh() {
+        java.util.LinkedHashMap<String, app.core.DayLedger.Event> day = model.day();
+        java.util.Set<String> present = new java.util.LinkedHashSet<>(day.keySet());
+        present.addAll(model.queuedCodes());
+        int max = cfg.getInt(SettingsManager.GAP_MAX, app.core.GapFinder.DEFAULT_MAX_GAP);
+        gaps = app.core.GapFinder.find(present, max);
+        int holes = app.core.GapFinder.holes(gaps);
+        long missing = app.core.GapFinder.missing(gaps);
+        gapModel.set(gaps);
+        viewSel.setLabel(VIEW_GAPS, holes == 0 ? "Buchi" : "Buchi (" + holes + ")");
+        viewSel.setAlarm(VIEW_GAPS, holes > 0);
+        gapAlert = holes == 0 ? null
+            : (holes == 1 ? "1 BUCO" : holes + " BUCHI") + " (" + missing
+              + (missing == 1 ? " mancante)" : " mancanti)");
+        refreshGapButton();
+        writeGapsIfChanged();
+    }
+
+    /** The day's holes on disk next to the report: only when they change, off the EDT. */
+    private void writeGapsIfChanged() {
+        final String date = today();
+        final String csv = app.core.GapFinder.toCsv(gaps);
+        if (csv.equals(gapsCsvWritten) && date.equals(gapsDay)) return;
+        boolean nothing = gaps.isEmpty();
+        final File out = app.config.AppFiles.dailyGaps(date);
+        if (nothing && !out.exists()) { gapsCsvWritten = csv; gapsDay = date; return; }
+        gapsCsvWritten = csv;
+        gapsDay = date;
+        try {
+            JOURNAL.execute(() -> {
+                try {
+                    app.core.AtomicFile.write(out.toPath(), csv.getBytes(StandardCharsets.UTF_8));
+                } catch (IOException ex) {
+                    System.err.println("[gaps] " + ex.getMessage());
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closing) {
+            // the app is closing: the next start writes them again
+        }
+    }
+
+    /** What the day line says now (the tests read it). */
+    String dayText() {
+        return lblDay.getText();
+    }
+
+    /** A one-off message for the operator (the workstation at start, say). */
+    public void notice(String text) {
+        lblHint.setText(text.replace("\n", " · "));
+        lblHint.setToolTipText("<html>" + text.replace("&", "&amp;").replace("<", "&lt;")
+                               .replace("\n", "<br>") + "</html>");
     }
 
     /** The table model, for the modes' own checks and the tests. */
@@ -829,6 +1204,67 @@ public class ResultsPanel extends JPanel {
         if (last >= 0) table.scrollRectToVisible(table.getCellRect(last, 0, true));
     }
 
+    // ── the holes: one row per run of missing numbers ──────────────────────
+    private static final class GapTableModel extends javax.swing.table.AbstractTableModel {
+        private static final String[] COLS = { "Tipo", "Da", "A", "Mancano" };
+        private java.util.List<app.core.GapFinder.Gap> rows = new java.util.ArrayList<>();
+
+        void set(java.util.List<app.core.GapFinder.Gap> g) {
+            rows = new java.util.ArrayList<>(g);
+            fireTableDataChanged();
+        }
+
+        app.core.GapFinder.Gap at(int r) { return rows.get(r); }
+
+        @Override public int getRowCount()           { return rows.size(); }
+        @Override public int getColumnCount()        { return COLS.length; }
+        @Override public String getColumnName(int c) { return COLS[c]; }
+
+        @Override public Object getValueAt(int r, int c) {
+            app.core.GapFinder.Gap g = rows.get(r);
+            switch (c) {
+                case 0:  return g.prefix;
+                case 1:  return tail(g.fromCode, g.prefix);
+                case 2:  return tail(g.toCode, g.prefix);
+                default: return g.jump ? "salto: " + g.count() : String.valueOf(g.count());
+            }
+        }
+
+        /** The number without its type: the type already has a column. */
+        private static String tail(String code, String prefix) {
+            return code.startsWith(prefix) ? code.substring(prefix.length()) : code;
+        }
+    }
+
+    private static final class GapRenderer extends DefaultTableCellRenderer {
+        private final GapTableModel model;
+        GapRenderer(GapTableModel model) { this.model = model; }
+
+        @Override public Component getTableCellRendererComponent(JTable t, Object v,
+                boolean sel, boolean foc, int row, int col) {
+            Component c = super.getTableCellRendererComponent(t, v, sel, foc, row, col);
+            app.core.GapFinder.Gap g = model.at(t.convertRowIndexToModel(row));
+            if (!sel) c.setBackground(g.jump ? AppTheme.BASE : AppTheme.KO_TINT);
+            c.setForeground(g.jump ? AppTheme.OVERLAY : AppTheme.TEXT);
+            c.setFont(col == 0 ? AppTheme.F_SMALL : col == 3 ? AppTheme.F_BOLD : AppTheme.F_MONO);
+            if (col == 3 && !g.jump) c.setForeground(AppTheme.RED);
+            if (c instanceof JComponent) {
+                JComponent jc = (JComponent) c;
+                jc.setToolTipText(g.jump
+                    ? "Salto di " + g.count() + " numeri: un'altra pila di etichette, non controllato"
+                    : g.fromCode + " - " + g.toCode);
+                if (col == 0) {
+                    jc.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createMatteBorder(0, SPINE, 0, 0, g.jump ? AppTheme.SURFACE2 : AppTheme.RED),
+                        BorderFactory.createEmptyBorder(0, 6, 0, 6)));
+                } else {
+                    jc.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
+                }
+            }
+            return c;
+        }
+    }
+
     // ── renderer: spine + tint tell the outcome at a glance ────────────────
     private static final class RowRenderer extends DefaultTableCellRenderer {
         private final RunTableModel model;
@@ -839,14 +1275,16 @@ public class ResultsPanel extends JPanel {
             Component c = super.getTableCellRendererComponent(t, v, sel, foc, row, col);
             int state = model.stateAt(t.convertRowIndexToModel(row));
             boolean ok = state == RunTableModel.OK;
-            boolean pending = state == RunTableModel.PENDING;
+            boolean deleted = state == RunTableModel.DELETED;
+            // a deleted label is history, not a problem: grey like a waiting row
+            boolean pending = state == RunTableModel.PENDING || deleted;
 
             if (!sel) {
                 c.setBackground(pending ? AppTheme.BASE
                               : ok      ? AppTheme.OK_TINT
                               :           AppTheme.KO_TINT);
             }
-            c.setForeground(AppTheme.TEXT);
+            c.setForeground(deleted ? AppTheme.OVERLAY : AppTheme.TEXT);
             c.setFont(col == 1 || col == 2 ? AppTheme.F_MONO : AppTheme.F_UI);
 
             if (c instanceof JComponent) {

@@ -36,6 +36,13 @@ public class SettingsWindow extends JDialog {
 
     private final SettingsManager cfg = SettingsManager.getInstance();
     private JSpinner spMemoWait;
+    private JTabbedPane tabs;
+
+    /** Show the tab with this title (a missing coordinate lives there). */
+    public void selectTab(String title) {
+        int i = tabs.indexOfTab(title);
+        if (i >= 0) tabs.setSelectedIndex(i);
+    }
 
     public SettingsWindow(Window owner) {
         super(owner, "Impostazioni", ModalityType.MODELESS);
@@ -47,13 +54,15 @@ public class SettingsWindow extends JDialog {
 
         root.add(buildHeader(), BorderLayout.NORTH);
 
-        JTabbedPane tabs = new JTabbedPane(JTabbedPane.TOP);
+        tabs = new JTabbedPane(JTabbedPane.TOP);
         AppTheme.flatTabs(tabs);
         tabs.addTab("A intervallo", page(buildRegister()));
         tabs.addTab("Verifica",      page(buildVerify()));
         tabs.addTab("Stampa",        page(buildPrint()));
         tabs.addTab("A scansione",   page(buildDualScan()));
         tabs.addTab("Da file",       page(buildFile()));
+        tabs.addTab("Cancella",      page(buildDelete()));
+        tabs.addTab("Giornata",      page(buildDay()));
         tabs.addTab("Finestra",      page(buildWindow()));
         tabs.addTab("Storico",       page(buildHistory()));
         tabs.addTab("Manuale",       new ManualPane());
@@ -208,6 +217,9 @@ public class SettingsWindow extends JDialog {
         p.coordRow("Casella 1 (serial)", SettingsManager.SCAN_COORD_X, SettingsManager.SCAN_COORD_Y,
                    "il primo campo del form sul sito");
         p.section("Tempi del burst");
+        p.spinRow("Attesa avvio", intSp(SettingsManager.SCAN_START_WAIT, 3, 0, 10), "s",
+                  "dopo REGISTRA TUTTO, RIPRENDI o AVVIA (Da file) il robot aspetta questi secondi: "
+                  + "il tempo di togliere la mano dal mouse, che altrimenti ferma la sicura");
         p.spinRow("Attesa dopo il click", intSp(SettingsManager.SCAN_FOCUS, 300, 50, 5000), "ms",
                   "quanto il sito ci mette a dare il focus al campo");
         p.spinRow("Pausa tra i tasti", intSp(SettingsManager.SCAN_KEY, 70, 10, 2000), "ms", "");
@@ -275,6 +287,88 @@ public class SettingsWindow extends JDialog {
                 + "controlla tutte le coppie inviate dal file; mai a metà blocco");
         p.hint("Il robot usa la coordinata e i tempi del tab A scansione, e la coordinata "
              + "Export CSV del tab Verifica.");
+        return p.panel;
+    }
+
+    // ── tab: cancella (etichette rovinate tolte dal portale) ─────────────
+
+    private JPanel buildDelete() {
+        Page p = new Page();
+        p.section("Posizioni");
+        p.coordRow("Casella Cancella", SettingsManager.DEL_COORD_X, SettingsManager.DEL_COORD_Y,
+                   "il campo del numero di serie nel riquadro Delete del portale");
+        p.coordRow("Tasto DELETE", SettingsManager.DEL_BUTTON_X, SettingsManager.DEL_BUTTON_Y,
+                   "il bottone rosso DELETE: il portale cancella subito, senza chiedere");
+        p.section("Tempi");
+        p.spinRow("Attesa avvio", intSp(SettingsManager.DEL_WAIT, 3, 0, 10), "s",
+                  "dopo CANCELLA DAL PORTALE: il tempo di togliere la mano dal mouse");
+        p.spinRow("Attesa dopo il click", intSp(SettingsManager.DEL_FOCUS, 300, 50, 5000), "ms",
+                  "quanto il sito ci mette a dare il focus al campo");
+        p.spinRow("Attesa dopo DELETE", intSp(SettingsManager.DEL_AFTER, 600, 100, 10000), "ms",
+                  "alzalo se il portale è lento a cancellare");
+        p.spinRow("Pausa tra le etichette", intSp(SettingsManager.DEL_PAUSE, 800, 100, 10000), "ms", "");
+        p.section("Comportamento");
+        JCheckBox now = check("Cancella subito a ogni INVIO",
+            cfg.getBool(SettingsManager.DEL_IMMEDIATE, false));
+        now.addActionListener(e -> save(SettingsManager.DEL_IMMEDIATE, now.isSelected()));
+        p.row(now, "spenta: le etichette si mettono in lista e partono col tasto rosso. "
+                 + "Accesa: ogni etichetta sparata parte da sola, dopo l'attesa avvio");
+        JCheckBox ver = check("Controlla sul portale a fine cancellazione",
+            cfg.getBool(SettingsManager.DEL_VERIFY_AUTO, true));
+        ver.addActionListener(e -> save(SettingsManager.DEL_VERIFY_AUTO, ver.isSelected()));
+        p.row(ver, "un Export CSV: le cancellate non devono più esserci. Usa la coordinata "
+                 + "Export CSV del tab Verifica");
+        p.hint("La sicura del mouse è quella del tab A scansione.");
+        return p.panel;
+    }
+
+    // ── tab: giornata (buchi, postazione) ─────────────────────────────────
+
+    private JPanel buildDay() {
+        Page p = new Page();
+        p.section("Buchi nella numerazione");
+        p.spinRow("Buco più largo", intSp(SettingsManager.GAP_MAX, app.core.GapFinder.DEFAULT_MAX_GAP, 1, 5000),
+                  "etichette", "tra due etichette registrate dello stesso tipo: più numeri saltati di "
+                  + "così sono un'altra pila di etichette (salto), non un buco");
+        p.hint("I buchi del giorno sono anche nel file AutoFillSuite_buchi_<data>.csv, accanto al report.");
+
+        p.section("Postazione all'avvio");
+        JCheckBox auto = check("Al primo avvio della giornata apri portale e stampa",
+            cfg.getBool(SettingsManager.STATION_AUTO, true));
+        auto.addActionListener(e -> save(SettingsManager.STATION_AUTO, auto.isSelected()));
+        p.row(auto, "apre il portale nel browser e avvia il programma della stampante "
+                  + "(se non è già acceso): l'operatore trova tutto pronto");
+        JTextField url = AppTheme.field();
+        url.setText(cfg.get(SettingsManager.STATION_PORTAL_URL, ""));
+        saveOnBlur(url, SettingsManager.STATION_PORTAL_URL);
+        p.fieldRow("Indirizzo portale", url, "copialo dalla barra del browser quando il portale è aperto");
+        JTextField proxy = AppTheme.field();
+        proxy.setText(cfg.get(SettingsManager.STATION_PROXY_PATH, ""));
+        saveOnBlur(proxy, SettingsManager.STATION_PROXY_PATH);
+        JButton browse = AppTheme.secondary("Sfoglia...", null);
+        browse.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser(proxy.getText().isEmpty()
+                ? new File(System.getProperty("user.home"), "Desktop") : new File(proxy.getText()));
+            fc.setDialogTitle("Programma della stampante (.exe)");
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                proxy.setText(fc.getSelectedFile().getAbsolutePath());
+                save(SettingsManager.STATION_PROXY_PATH, proxy.getText());
+            }
+        });
+        JPanel proxyRow = new JPanel(new BorderLayout(6, 0));
+        proxyRow.setOpaque(false);
+        proxyRow.add(proxy, BorderLayout.CENTER);
+        proxyRow.add(browse, BorderLayout.EAST);
+        p.fieldRow("Programma stampa", proxyRow,
+                   "il .exe che il portale usa per stampare (es. Alpitronic.ZebraPrinter.Proxy.App.exe)");
+        p.spinRow("Porta del programma", intSp(SettingsManager.STATION_PROXY_PORT, 8889, 1, 65535), "",
+                  "se risponde su questa porta è già acceso e non viene riaperto");
+        JButton now = AppTheme.secondary("Prepara la postazione adesso", null);
+        now.addActionListener(e -> {
+            String msg = Station.prepare(true);
+            JOptionPane.showMessageDialog(this, msg, "Postazione", JOptionPane.INFORMATION_MESSAGE);
+        });
+        p.row(now, "");
         return p.panel;
     }
 
@@ -465,7 +559,7 @@ public class SettingsWindow extends JDialog {
             if (!hint.isEmpty()) hintUnder(hint);
         }
 
-        void fieldRow(String label, JTextField tf, String hint) {
+        void fieldRow(String label, JComponent tf, String hint) {
             g.gridx = 0; g.gridy = y; g.gridwidth = 1; g.weightx = 0;
             JLabel l = AppTheme.label(label);
             l.setPreferredSize(new Dimension(150, 22));

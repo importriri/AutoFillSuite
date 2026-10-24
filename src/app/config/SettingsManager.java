@@ -152,6 +152,8 @@ public class SettingsManager {
     public static final String SCAN_VERIFY_EVERY = "scan.verifyEvery";
     public static final String SCAN_BATCH        = "scan.batchMode";
     public static final String SCAN_ENTER       = "scan.enter";
+    /** Seconds between a lever pressed with the mouse and the robot's first move (0 = at once). */
+    public static final String SCAN_START_WAIT  = "scan.startWait";
     public static final String SCAN_COORD_X     = "scan.coordX";
     public static final String SCAN_COORD_Y     = "scan.coordY";
 
@@ -166,4 +168,26 @@ public class SettingsManager {
     public static final String FILE_LAST_DIR     = "file.lastDir";     // folder of the last CSV opened
     public static final String FILE_PREFLIGHT    = "file.preflight";   // check the portal before sending
     public static final String FILE_BLOCK_SIZE   = "file.blockSize";   // pairs per verified block
+
+    // Giornata — the holes in the day's numbering
+    public static final String GAP_MAX           = "gap.max";          // widest run reported as missing
+
+    // Tab "Cancella" — labels deleted from the portal
+    public static final String DEL_COORD_X       = "del.coordX";       // the serial field of the Delete form
+    public static final String DEL_COORD_Y       = "del.coordY";
+    public static final String DEL_BUTTON_X      = "del.buttonX";      // the DELETE button
+    public static final String DEL_BUTTON_Y      = "del.buttonY";
+    public static final String DEL_WAIT          = "del.wait";         // s before the robot starts
+    public static final String DEL_FOCUS         = "del.focus";        // ms after the click on the field
+    public static final String DEL_AFTER         = "del.after";        // ms after DELETE
+    public static final String DEL_PAUSE         = "del.pause";        // ms between two labels
+    public static final String DEL_IMMEDIATE     = "del.immediate";    // ENTER on a scan deletes at once
+    public static final String DEL_VERIFY_AUTO   = "del.verifyAuto";   // export check at the end
+
+    // Postazione — what the first start of the day opens
+    public static final String STATION_AUTO       = "station.autoStart"; // open portal and proxy at the first start
+    public static final String STATION_PORTAL_URL = "station.portalUrl";
+    public static final String STATION_PROXY_PATH = "station.proxyPath"; // the print proxy's .exe
+    public static final String STATION_PROXY_PORT = "station.proxyPort";
+    public static final String STATION_LAST_DAY   = "station.lastDay";   // the day the station was last prepared
 }

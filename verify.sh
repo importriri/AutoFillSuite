@@ -32,6 +32,8 @@ java -cp out app.core.RegistrationVerifierTest
 java -cp out app.core.DownloadWatcherTest
 java -cp out app.core.VerificationTaskTest
 java -cp out app.core.CoreExtrasTest
+java -cp out app.core.DayLedgerTest
+java -cp out app.core.GapFinderTest
 java -cp out app.core.ScanGuardTest
 java -cp out app.core.PairBurstTest
 java -cp out app.core.RobotGateTest
@@ -51,10 +53,13 @@ java -cp out app.ui.FileModePanelTest
 java -cp out app.ui.ShutdownTest
 java -cp out app.ui.RangeModeTest
 java -cp out app.ui.RegisteredTodayTest
+java -cp out app.ui.DayRestoreTest
+java -cp out app.ui.DeleteModeTest
 java -cp out app.ui.ScanConfirmKeysTest
 java -cp out app.ui.ScanRaceTest
 java -cp out app.ui.ResultsOwnershipTest
 java -cp out app.ui.ScanSessionTest
+java -cp out app.ui.ScanCountdownTest
 java -cp out app.ui.MidnightReportTest
 java -cp out app.ui.ManualRenderTest
 java -cp out app.ui.SpinnerCommitTest
@@ -62,6 +67,8 @@ java -cp out app.ui.ScanTabSupportTest
 java -cp out app.ui.TextFitTest
 java -cp out app.ui.BannerFitTest
 java -cp out app.ui.HudPositionTest
+java -cp out app.ui.StationTest
+java -cp out app.ui.WindowWatchTest
 java -cp out app.ui.StartupSmokeTest
 java -cp out app.ui.StartupSmokeTest --saved
 TESTS

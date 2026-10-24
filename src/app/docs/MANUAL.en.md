@@ -7,8 +7,11 @@ The same text is readable inside the app: **Impostazioni > Manuale**.
 
 ## 1. First setup (once per workstation)
 
-1. Launch the JAR. The window stays **always on top** — that is by design:
-   it must survive next to the browser.
+1. Launch **AutoFillSuite.exe** (from the folder extracted from the release
+   zip: no Java, nothing to install) or the JAR when the PC has Java. The
+   window stays **always on top** — that is by design: it must survive next
+   to the browser. If Windows says "Windows protected your PC", press **More
+   info** and then **Run anyway**: no administrator rights are needed.
 2. Open the settings (the gear, top right). Every setting saves the moment
    you change it.
 3. Memorize the portal coordinates. Each **Memo** button starts a short
@@ -19,6 +22,8 @@ The same text is readable inside the app: **Impostazioni > Manuale**.
    - **Impostazioni > Verifica**: the portal's **Export CSV** button.
    - **Impostazioni > A scansione**: the first form field again, for the
      dual-QR mode.
+   - **Impostazioni > Cancella**: the serial field of the portal's **Delete**
+     box ("Casella Cancella") and the red **DELETE** button.
 4. **Impostazioni > Verifica > Cartella download**: the folder where the
    browser saves the portal's CSV export. **Cartella report**: where the
    daily CSV report for the quality office is written. **Prefisso export**:
@@ -26,10 +31,26 @@ The same text is readable inside the app: **Impostazioni > Manuale**.
    changes).
 5. Theme (Mocha dark / Latte light) is in the settings header. It applies
    at the next launch.
+6. **Impostazioni > Giornata > Postazione all'avvio**: paste the portal's
+   address and pick the print program (the `.exe` file, not the shortcut).
+   From the next day on, the first start of the day opens the portal and
+   starts the printer by itself (see section 10).
 
-If the app window would cover one of its own click targets, it steps aside
-on its own before starting — or refuses to start and tells you. The portal
-may also sit on a second monitor, right or left of the main one.
+When a coordinate is missing, the app says so and opens the settings on the
+right tab.
+
+**The window in the robot's way.** The app is always on top: over a point the
+robot clicks, the robot would click the app instead of the portal. The window
+is watched while it is open:
+
+- with the **robot still**, the header turns **red** ("Copro: Casella 1")
+  with a **Spostala** button. It does not move by itself: you are handling it;
+- with the **robot working**, it moves into a free corner by itself, always
+  between two labels, never in the middle of a send. With automatic moving
+  switched off in **Impostazioni > Finestra** it only turns red (the bottom
+  bar too: "SPOSTAMI").
+
+The portal may also sit on a second monitor, right or left of the main one.
 
 ## 2. REGISTRA · Intervallo (range mode)
 
@@ -110,7 +131,16 @@ malformed expression turns red and is ignored — it never blocks the line.
 
 ### 3.2 The bottom bar (HUD) and blocks
 
-Press **REGISTRA TUTTO** and the window shrinks to the bar at the bottom of
+Press **REGISTRA TUTTO** and the robot does **not** start at once: the banner,
+the bottom bar and the lever itself count **PARTO TRA 3s — togli la mano dal
+mouse** (take your hand off the mouse), and the lever reads **ANNULLA AVVIO**
+meanwhile. It used to start on the spot, and the hand leaving the mouse
+tripped the fail-safe almost every time. The same countdown runs on
+**RIPRENDI** (continuo, with pairs queued) and on **PRE-VOLO E AVVIA** in Da
+file. The seconds are in **Impostazioni > A scansione > Attesa avvio** (0 = at
+once).
+
+Meanwhile the window shrinks to the bar at the bottom of
 the screen: during a block you do not need the fields, you need to see how far
 it got (`n / total`) and to have **STOP** within reach. The cockpit comes back
 by itself when the block ends, at once if you press STOP, and whenever the
@@ -231,9 +261,12 @@ Double-click any other cell to copy the label to the clipboard.
 Rows from earlier runs (see the view toggle) are read-only history.
 
 At the top of the results panel a switch flips between **Ultimo giro** (only
-the run you just finished) and **Oggi** (every label registered today,
-numbered continuously). It changes only what you see — the daily report
-always contains every run.
+the run you just finished), **Oggi** and **Buchi** (see section 10). **Oggi**
+shows **one row per label**, with the last thing that happened to it: a range
+stopped halfway and started again no longer shows its labels twice. Under the
+switch, the line **OGGI: n registrate** counts the same way the portal does:
+the last registration wins, and deleted labels do not count. It changes only
+what you see — the daily report always contains every run.
 
 The **daily report** (`AutoFillSuite_report_yyyy-MM-dd.csv`, folder in the
 settings) **writes itself**: every label you send is journaled the moment it
@@ -270,6 +303,11 @@ the bar goes elsewhere.
 | A run crashed before verifying | On the next launch the app offers **VERIFICA ORA** for the pending run. |
 | «l'intervallo supera 999» | The last three digits would reach 1000: split the range, the second part starting from the new label. |
 | «Lotto in Etichetta» in Intervallo | The lot went into the Etichetta field: press **Scambia** (F2). |
+| "printer error" printing from the portal | The print program does not answer: start it (or **Impostazioni > Giornata > Prepara la postazione adesso**), then try again. If its log stays still, in Chrome: icon left of the address > **Site settings** > **Local network access** > **Allow**, then F5. |
+| The header is red: "Copro: ..." | The window covers a point the robot clicks: press **Spostala**, or drag it elsewhere. |
+| The OGGI line is red: "BUCHI" | Numbers are missing between registered labels: click the line and look at **Buchi** (section 10). |
+| "Questo è un LOTTO" in Cancella | You scanned the lot: scan the label to delete. |
+| "ANCORA SUL PORTALE" in Cancella | The portal did not delete it: put it back in the list and press CANCELLA again. |
 | «already registered today» question | That label has a lot on the portal since this morning: confirm only to really correct it, clicking **Sì** with the mouse. |
 | A scan vanished while a question was open | The scan answered **No** to the question: scan the pair again. |
 | I closed the app with a full queue | Nothing is lost: reopen, **Ripristina** on the Scansione card, then REGISTRA TUTTO or RIPRENDI. |
@@ -325,3 +363,67 @@ becomes **VERIFICA E CHIUDI**, and a clean check closes the file.
 
 AutoFillSuite keeps a copy of every imported file in the report folder
 (`importazioni/`): the stick may be lost after the import.
+
+## 9. CANCELLA (spoiled labels)
+
+For spoiled or discarded labels that must leave the portal. The portal deletes
+on the **DELETE** click, with no question, and the label disappears from its
+export.
+
+1. **CANCELLA** in the top selector.
+2. Scan (or type) the label and press ENTER: it joins the **list** and the
+   field clears. Add as many as you need. **Togli** removes the selected one,
+   **Svuota** the whole list: the portal is not touched.
+3. Press the red **CANCELLA DAL PORTALE (n)**. The robot counts down
+   (**PARTO TRA 3s**: take your hand off the mouse), then for every label it
+   clicks the Casella Cancella, pastes the code and presses DELETE.
+4. At the end of the list the app makes an **Export CSV** and checks the
+   labels are gone: **CANCELLATE E CONTROLLATE**. Labels still present turn red
+   (**ANCORA SUL PORTALE**): put them back in the list and try again.
+   **Verifica** repeats the check by hand.
+
+The safeties:
+
+- **A label registered today** with a lot is a good piece: before listing it
+  the app asks, saying when and with which lot.
+- **A lot** scanned into the field is refused ("Questo è un LOTTO"), when the
+  two QR codes are described in **Impostazioni > A scansione**.
+- **Mouse moved**: before DELETE nothing is deleted and the robot stops; after
+  DELETE the label is deleted and the robot stops anyway.
+- **The list is saved on disk** (`AutoFillSuite_cancella_lista.txt`): close
+  the app and you find it again as it was.
+
+A deleted label leaves the **OGGI** count and fills its place in the
+numbering: it is no longer a hole. **Impostazioni > Cancella** can also start
+the robot at every ENTER, without the red lever.
+
+## 10. The day: holes, reopening, workstation
+
+**Holes.** Labels of one type are printed in sequence: with 510 and 520
+registered and nothing in between, 511 to 519 are missing — pieces not
+registered, or spoiled labels never deleted from the portal. The app looks for
+them per **label type** (everything before the final number), in every mode,
+over the whole day:
+
+- the **OGGI** line turns **red** ("2 BUCHI (14 mancanti)"): click it;
+- the **Buchi** switch lists type, from, to and how many are missing;
+- register those labels or, if they are spoiled, select the hole and press
+  **Cancella dal portale**: they go to the Cancella tab, and once deleted the
+  hole is gone. A pair still waiting in the queue already closes its hole.
+
+A jump wider than 50 numbers (**Impostazioni > Giornata > Buco più largo**) is
+not a hole but another stack of labels: it shows in grey as a **salto**, never
+as missing work. The day's holes are also written to
+`AutoFillSuite_buchi_yyyy-mm-dd.csv`, next to the report.
+
+**Reopening.** Close the app (even by mistake) and reopen it on the same day:
+everything is back. The OGGI line and the **Oggi** view are read again from
+the day's report, the scan queue is restored (3.4), the Cancella list is
+saved, a half-done file resumes.
+
+**Workstation.** With **Impostazioni > Giornata > Postazione all'avvio** on,
+the first start of the day opens the portal in the browser and starts the
+print program, unless it already runs. The program starts **without a
+window** (its log goes to `AutoFillSuite_stampa_log.txt`): a black console
+window clicked by mistake goes into "Select" mode and freezes printing.
+**Prepara la postazione adesso** does the same whenever you want.

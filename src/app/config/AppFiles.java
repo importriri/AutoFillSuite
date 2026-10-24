@@ -47,6 +47,16 @@ public final class AppFiles {
         return new File(reportDir(), "AutoFillSuite_report_" + date + ".csv");
     }
 
+    /** The holes in the day's numbering, yyyy-MM-dd: rewritten whole at every change. */
+    public static File dailyGaps(String date) {
+        return new File(reportDir(), "AutoFillSuite_buchi_" + date + ".csv");
+    }
+
+    /** The Cancella tab's list of labels still to delete: a closed app finds it again. */
+    public static File deleteList() {
+        return new File(reportDir(), "AutoFillSuite_cancella_lista.txt");
+    }
+
     /** AutoFillSuite's own copies of the imported Registro QR files. */
     public static File importsDir(File reportDir) {
         return new File(reportDir, IMPORTS_DIR);

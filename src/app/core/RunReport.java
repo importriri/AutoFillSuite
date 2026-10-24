@@ -13,8 +13,19 @@ public final class RunReport {
     /** One table row as the report sees it. */
     public static final class Entry {
         public final String code, lot, sentAt;   // sentAt null = never sent
+        /** A row of the Cancella tab: sent means deleted from the portal. */
+        public final boolean delete;
+        /** The row's own word for a deletion (a check may have spoken already); may be null. */
+        public final String verdict;
         public Entry(String code, String lot, String sentAt) {
-            this.code = code; this.lot = lot; this.sentAt = sentAt;
+            this(code, lot, sentAt, false, null);
+        }
+        public Entry(String code, String lot, String sentAt, boolean delete) {
+            this(code, lot, sentAt, delete, null);
+        }
+        public Entry(String code, String lot, String sentAt, boolean delete, String verdict) {
+            this.code = code; this.lot = lot; this.sentAt = sentAt; this.delete = delete;
+            this.verdict = verdict;
         }
     }
 
@@ -35,11 +46,19 @@ public final class RunReport {
             sb.append(esc(e.code)).append(';')
               .append(esc(e.lot)).append(';')
               .append(sent ? e.sentAt : "-").append(';')
-              .append(sent ? "INVIATA" : "IN CODA").append(';')
+              .append(sent ? (e.delete ? deleteWord(e) : "INVIATA") : "IN CODA").append(';')
               .append(0).append(';')
               .append("").append('\n');
         }
         return sb.toString();
+    }
+
+    /** A sent deletion keeps what its check said; unchecked, it is CANCELLATA. */
+    private static String deleteWord(Entry e) {
+        if (DayLedger.DELETED_VERIFIED.equals(e.verdict) || DayLedger.STILL_THERE.equals(e.verdict)) {
+            return e.verdict;
+        }
+        return DayLedger.DELETED;
     }
 
     public static String toCsv(List<Entry> entries, VerificationResult r) {
@@ -81,6 +100,32 @@ public final class RunReport {
         return sb.toString();
     }
 
+    /**
+     * The Cancella tab after its check: a deleted label must be GONE from the
+     * portal's export. {@code stillThere} = the labels the export still holds.
+     */
+    public static String deleteCsv(List<Entry> entries, java.util.Set<String> stillThere) {
+        StringBuilder sb = new StringBuilder(HEADER).append('\n');
+        for (Entry e : entries) {
+            boolean sent = e.sentAt != null;
+            String esito, dettaglio = "";
+            if (!sent) {
+                esito = "NON INVIATA"; dettaglio = "mai cancellata dal portale";
+            } else if (stillThere.contains(e.code)) {
+                esito = DayLedger.STILL_THERE; dettaglio = "l'export la contiene ancora";
+            } else {
+                esito = DayLedger.DELETED_VERIFIED;
+            }
+            sb.append(esc(e.code)).append(';')
+              .append(esc(e.lot)).append(';')
+              .append(sent ? e.sentAt : "-").append(';')
+              .append(esito).append(';')
+              .append(0).append(';')
+              .append(esc(dettaglio)).append('\n');
+        }
+        return sb.toString();
+    }
+
     public static String summary(int total, VerificationResult r) {
         return r.isClean()
             ? "TUTTO OK;" + r.getMatched() + "/" + total
@@ -100,23 +145,12 @@ public final class RunReport {
 
     /**
      * Labels SENT today according to the day's report, with the lot and the
-     * send time of their last sending: rows queued or never sent do not count.
+     * send time of their last sending: rows queued or never sent do not count,
+     * and a label deleted from the portal afterwards is not registered any more.
      * label -> {lot, time}.
      */
     public static Map<String, String[]> sentToday(List<String> reportLines) {
-        Map<String, String[]> out = new java.util.LinkedHashMap<>();
-        for (String line : reportLines) {
-            if (line.isEmpty() || line.startsWith("RUN;") || line.startsWith("Etichetta;")
-                || line.startsWith("TUTTO OK;") || line.startsWith("PROBLEMI;")
-                || line.startsWith("Verifica;") || line.startsWith("Aggiornato;")) continue;
-            List<String> f = splitCsv(line);
-            if (f.size() < 4) continue;
-            String sentAt = f.get(2), esito = f.get(3);
-            if ("-".equals(sentAt) || sentAt.isEmpty() || "IN CODA".equals(esito)
-                || "NON INVIATA".equals(esito)) continue;
-            out.put(f.get(0), new String[] { f.get(1), sentAt });
-        }
-        return out;
+        return DayLedger.registered(DayLedger.resolve(DayLedger.fromReport(reportLines)));
     }
 
     /** One report line into fields, honouring the quotes esc() writes. */
@@ -189,7 +223,7 @@ public final class RunReport {
     }
 
     // free-text lots can carry ; " or newlines: quote and double the quotes
-    static String esc(String s) {
+    public static String esc(String s) {
         if (s == null) return "";
         boolean needs = s.indexOf(';') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0;
         return needs ? '"' + s.replace("\"", "\"\"") + '"' : s;

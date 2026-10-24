@@ -63,9 +63,32 @@ public class Segmented extends JPanel {
         onChange.accept(idx);
     }
 
+    /** Show a segment as selected WITHOUT notifying (a restored state, not a click). */
+    public void setSelectedSilently(int idx) {
+        if (idx < 0 || idx >= segments.length) return;
+        selected = idx;
+        paintSegments();
+    }
+
     public int getSelected() {
         return selected;
     }
+
+    /** A segment's text changes (a count in it), never its place. */
+    public void setLabel(int idx, String text) {
+        if (idx < 0 || idx >= segments.length) return;
+        segments[idx].setText(text);
+    }
+
+    /** A segment painted as an alarm (red text) or back to normal. */
+    public void setAlarm(int idx, boolean alarm) {
+        if (idx < 0 || idx >= segments.length) return;
+        alarms = alarms == null ? new boolean[segments.length] : alarms;
+        alarms[idx] = alarm;
+        paintSegments();
+    }
+
+    private boolean[] alarms;
 
     private void paintSegments() {
         for (int i = 0; i < segments.length; i++) {
@@ -77,6 +100,7 @@ public class Segmented extends JPanel {
                 segments[i].setBackground(on ? AppTheme.SURFACE1 : AppTheme.BASE);
                 segments[i].setForeground(on ? AppTheme.TEXT : AppTheme.OVERLAY);
             }
+            if (alarms != null && alarms[i]) segments[i].setForeground(AppTheme.RED);
         }
     }
 }

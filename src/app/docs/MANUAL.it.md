@@ -7,8 +7,12 @@ Questo stesso testo si legge dentro l'app: **Impostazioni > Manuale**.
 
 ## 1. Prima configurazione (una volta per postazione)
 
-1. Avvia il JAR. La finestra resta **sempre in primo piano** — è voluto:
-   deve sopravvivere accanto al browser.
+1. Avvia **AutoFillSuite.exe** (dalla cartella estratta dallo zip della
+   release: non serve Java e non serve installare niente) oppure il JAR, se
+   sul PC c'è Java. La finestra resta **sempre in primo piano** — è voluto:
+   deve sopravvivere accanto al browser. Se Windows dice «Windows ha protetto
+   il PC», premi **Ulteriori informazioni** e poi **Esegui comunque**: non
+   servono permessi di amministratore.
 2. Apri le **Impostazioni** (l'ingranaggio, in alto a destra). Ogni
    impostazione si salva appena la cambi.
 3. Memorizza le coordinate del portale. Ogni tasto **Memo** avvia un breve
@@ -20,16 +24,35 @@ Questo stesso testo si legge dentro l'app: **Impostazioni > Manuale**.
    - **Impostazioni > Verifica**: il tasto **Export CSV** del portale.
    - **Impostazioni > A scansione**: il primo campo del form, per la modalità
      a due QR.
+   - **Impostazioni > Cancella**: il campo del numero di serie nel riquadro
+     **Delete** del portale («Casella Cancella») e il tasto rosso **DELETE**.
 4. **Impostazioni > Verifica > Cartella download**: la cartella dove il
    browser salva l'export CSV del portale. **Cartella report**: dove finisce
    il report giornaliero per l'ufficio qualità. **Prefisso export**: l'inizio
    del nome dei file scaricati (lascia il default salvo cambi del portale).
 5. Il tema (Mocha scuro / Latte chiaro) è nell'intestazione delle
    impostazioni. Si applica al prossimo avvio.
+6. **Impostazioni > Giornata > Postazione all'avvio**: incolla l'indirizzo
+   del portale e scegli il programma della stampante (il file `.exe`, non il
+   collegamento). Dal giorno dopo, il primo avvio della giornata apre il
+   portale e accende la stampante da solo (vedi §10).
 
-Se la finestra dell'app coprisse uno dei suoi stessi bersagli di click, si
-sposta da sola prima di partire — o rifiuta di partire e te lo dice. Il
-portale può stare anche su un secondo monitor, a destra o a sinistra di
+Se manca una coordinata, l'app te lo dice e apre da sola le impostazioni sul
+tab giusto.
+
+**La finestra sulla strada del robot.** L'app sta sempre davanti: se copre un
+punto che il robot clicca, il robot cliccherebbe sull'app invece che sul
+portale. La finestra è sorvegliata finché è aperta:
+
+- a **robot fermo** l'intestazione diventa **rossa** («Copro: Casella 1») con
+  il tasto **Spostala**. Non si sposta da sola: in quel momento la stai
+  maneggiando tu;
+- a **robot al lavoro** si sposta da sola in un angolo libero, sempre tra
+  un'etichetta e l'altra, mai a metà di un invio. Se in **Impostazioni >
+  Finestra** hai spento lo spostamento automatico, diventa rossa e basta (anche
+  la barra bassa: «SPOSTAMI»).
+
+Il portale può stare anche su un secondo monitor, a destra o a sinistra di
 quello principale.
 
 ## 2. REGISTRA · Intervallo
@@ -115,7 +138,15 @@ non blocca mai la linea.
 
 ### 3.2 La barra bassa (HUD) e i blocchi
 
-Quando premi **REGISTRA TUTTO** la finestra si riduce da sola alla barra in
+Quando premi **REGISTRA TUTTO** il robot **non parte subito**: il banner, la
+barra bassa e il tasto stesso contano **PARTO TRA 3s — togli la mano dal
+mouse**. Il tasto, intanto, diventa **ANNULLA AVVIO**. Prima partiva al volo,
+e la mano che lasciava il mouse faceva scattare la sicura quasi ogni volta.
+Lo stesso conto c'è su **RIPRENDI** (in continuo, con coppie in coda) e su
+**PRE-VOLO E AVVIA** di Da file. I secondi si cambiano in **Impostazioni > A
+scansione > Attesa avvio** (0 = subito).
+
+Intanto la finestra si riduce da sola alla barra in
 fondo allo schermo: durante un blocco non ti servono i campi, ti serve vedere
 a che punto è (`n / totale`) e avere lo **STOP** a portata. Il cockpit torna
 da solo appena il blocco finisce, o subito se premi STOP, o se il robot si
@@ -240,8 +271,12 @@ righe dei giri precedenti (vedi il selettore vista) sono storico in sola
 lettura.
 
 In cima al pannello risultati un selettore alterna **Ultimo giro** (solo il
-giro appena concluso) e **Oggi** (tutte le etichette registrate in giornata,
-numerate di seguito). Cambia solo ciò che vedi — il report giornaliero
+giro appena concluso), **Oggi** e **Buchi** (vedi §10). **Oggi** mostra
+**una riga per etichetta**, con l'ultima cosa che le è successa: un
+intervallo fermato a metà e rifatto da capo non mostra più le stesse etichette
+due volte. Sotto il selettore, la riga **OGGI: n registrate** conta allo
+stesso modo, come conta il portale: vince l'ultima registrazione, e le
+cancellate non contano. Cambia solo ciò che vedi — il report giornaliero
 contiene sempre tutti i giri.
 
 Il **report giornaliero** (`AutoFillSuite_report_aaaa-mm-gg.csv`, cartella
@@ -279,6 +314,11 @@ barra si mette altrove.
 | Un run è crashato prima della verifica | Al prossimo avvio l'app offre **VERIFICA ORA** per il run in sospeso. |
 | «l'intervallo supera 999» | Le tre cifre finali arriverebbero a 1000: dividi l'intervallo in due, il secondo partendo dalla nuova etichetta. |
 | «Lotto in Etichetta» nell'Intervallo | Hai sparato il lotto nel campo Etichetta: premi **Scambia** (F2). |
+| «printer error» stampando dal portale | Il programma della stampante non risponde: aprilo (o **Impostazioni > Giornata > Prepara la postazione adesso**), poi riprova. Se il suo log resta fermo, in Chrome: icona a sinistra dell'indirizzo > **Impostazioni sito** > **Accesso alla rete locale** > **Consenti**, poi F5. |
+| L'intestazione è rossa: «Copro: ...» | La finestra copre un punto che il robot clicca: premi **Spostala**, o trascinala tu altrove. |
+| La riga OGGI è rossa: «BUCHI» | Mancano dei numeri tra etichette registrate: clicca la riga e guarda **Buchi** (vedi §10). |
+| «Questo è un LOTTO» in Cancella | Hai sparato il lotto: spara l'etichetta da cancellare. |
+| «ANCORA SUL PORTALE» in Cancella | Il portale non l'ha cancellata: rimettila in lista e premi di nuovo CANCELLA. |
 | Domanda «già registrata oggi» | Quell'etichetta ha già un lotto sul portale da stamattina: conferma solo se vuoi davvero correggerlo, cliccando **Sì** con il mouse. |
 | Uno sparo è sparito mentre c'era una domanda aperta | Lo sparo ha risposto **No** alla domanda: rispara la coppia. |
 | Ho chiuso l'app con la coda piena | Niente è perso: riapri, **Ripristina** sulla carta Scansione, poi REGISTRA TUTTO o RIPRENDI. |
@@ -335,3 +375,67 @@ il file.
 
 AutoFillSuite tiene una copia di ogni file importato nella cartella dei report
 (`importazioni/`): la chiavetta si può perdere dopo l'import.
+
+## 9. CANCELLA (etichette rovinate)
+
+Per le etichette rovinate o buttate, da togliere dal portale. Il portale le
+cancella al click su **DELETE**, senza chiedere, e l'etichetta sparisce
+dall'export.
+
+1. **CANCELLA** nel selettore in alto.
+2. Spara (o scrivi) l'etichetta e premi INVIO: entra in **lista** e il campo
+   si svuota. Puoi metterne quante vuoi. **Togli** toglie quella selezionata,
+   **Svuota** tutta la lista: il portale non viene toccato.
+3. Premi il tasto rosso **CANCELLA DAL PORTALE (n)**. Il robot aspetta il
+   conto (**PARTO TRA 3s**: togli la mano dal mouse), poi per ogni etichetta
+   clicca la Casella Cancella, incolla il codice e preme DELETE.
+4. A fine lista l'app fa un **Export CSV** e controlla che le etichette non ci
+   siano più: **CANCELLATE E CONTROLLATE**. Quelle ancora presenti diventano
+   rosse (**ANCORA SUL PORTALE**): rimettile in lista e riprova. **Verifica**
+   rifà il controllo a mano.
+
+Le sicure:
+
+- **Un'etichetta registrata oggi** con un lotto è un pezzo buono: prima di
+  metterla in lista l'app chiede, dicendo quando e con che lotto.
+- **Un lotto** sparato nel campo viene rifiutato («Questo è un LOTTO»), se hai
+  descritto i due QR in **Impostazioni > A scansione**.
+- **Mouse mosso**: prima del DELETE non si cancella niente e il robot si
+  ferma; dopo il DELETE l'etichetta è cancellata e il robot si ferma lo stesso.
+- **La lista è salvata su disco** (`AutoFillSuite_cancella_lista.txt`): se
+  chiudi l'app, la ritrovi uguale.
+
+Un'etichetta cancellata esce dal conteggio di **OGGI** e riempie il suo posto
+nella numerazione: non è più un buco. In **Impostazioni > Cancella** puoi
+anche far partire il robot a ogni INVIO, senza tasto rosso.
+
+## 10. La giornata: buchi, riapertura, postazione
+
+**I buchi.** Le etichette di un tipo si stampano in sequenza: se il 510 e il
+520 sono registrati e in mezzo non c'è niente, dal 511 al 519 manca qualcosa —
+pezzi non registrati, o etichette rovinate mai cancellate dal portale. L'app
+li cerca per **tipo di etichetta** (tutto quello che c'è prima del numero
+finale), in tutte le modalità, su tutta la giornata:
+
+- la riga **OGGI** diventa **rossa** («2 BUCHI (14 mancanti)»): cliccala;
+- il selettore **Buchi** elenca tipo, da, a e quante mancano;
+- registra quelle etichette, oppure, se sono rovinate, selezionale e premi
+  **Cancella dal portale**: passano al tab Cancella, e una volta cancellate il
+  buco sparisce. Anche una coppia ancora in coda chiude già il suo buco.
+
+Un salto più largo di 50 numeri (**Impostazioni > Giornata > Buco più largo**)
+non è un buco ma un'altra pila di etichette: compare in grigio come **salto**,
+mai come mancanti. I buchi del giorno sono anche nel file
+`AutoFillSuite_buchi_aaaa-mm-gg.csv`, accanto al report.
+
+**La riapertura.** Se chiudi l'app (anche per sbaglio) e la riapri nella
+stessa giornata, ritrovi tutto: la riga OGGI e la vista **Oggi** si rileggono
+dal report del giorno, la coda della Scansione si ripristina (§3.4), la lista
+di Cancella è salvata, un file a metà si riprende.
+
+**La postazione.** Con **Impostazioni > Giornata > Postazione all'avvio**
+acceso, il primo avvio della giornata apre il portale nel browser e accende il
+programma della stampante, se non è già acceso. Il programma parte **senza
+finestra** (il suo log va in `AutoFillSuite_stampa_log.txt`): una finestra
+nera cliccata per sbaglio si mette in «Seleziona» e blocca la stampa. **Prepara
+la postazione adesso** fa la stessa cosa quando vuoi.

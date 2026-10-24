@@ -52,7 +52,7 @@ public class ScanModePanel extends JPanel {
 
     // banner states
     private static final int READY = 0, BUSY = 1, VERIFY = 2, PAUSED = 3,
-                             ERROR = 4, COLLECT = 5, WARN = 6, STUCK = 7;
+                             ERROR = 4, COLLECT = 5, WARN = 6, STUCK = 7, ARMED = 8;
 
     // a scanned pair: the two QRs and its table row
     private static final class Pair {
@@ -96,6 +96,12 @@ public class ScanModePanel extends JPanel {
     private boolean sticky = false;               // a message that must not be wiped
     private volatile boolean blockRunning = false;   // a released block owns the HUD
     private int blockDone = 0;
+    // the lever was pressed WITH THE MOUSE: the hand is still on it, and the
+    // first burst read the hand leaving as "mouse moved". The robot waits a few
+    // seconds, counting down where the operator is looking (EDT only)
+    private volatile boolean armed = false;
+    private javax.swing.Timer armTimer;
+    private int armLeft = 0;
     private int sent = 0;
 
     private VerificationTask verifyTask = null;
@@ -211,6 +217,7 @@ public class ScanModePanel extends JPanel {
         batchMode = cfg.getBool(SettingsManager.SCAN_BATCH, false);
         modeSelector = new Segmented(new String[] { "Continuo", "A blocco" },
                                      false, batchMode ? 1 : 0, idx -> {
+            if (armed) { cancelArmQuietly(); endBlock(); }
             batchMode = idx == 1;
             releasing = false;
             cfg.set(SettingsManager.SCAN_BATCH, batchMode);
@@ -278,13 +285,25 @@ public class ScanModePanel extends JPanel {
         btnClearFields.addActionListener(e -> clearFields());
         btnSwap.addActionListener(e -> swapFields());
         btnFire.addActionListener(e -> {
+            // the countdown is running: the same lever says ANNULLA and means it
+            if (armed) { cancelArm(); return; }
             // another mode's job: the worker would slip its bursts between its cycles
             String other = paused || batchMode ? ctx.busyElsewhere(this) : null;
             if (other != null) { setState(ERROR, "Robot occupato: " + other); return; }
             if (paused) {                       // one lever: whatever stopped us, resume
-                paused = false;
-                refreshBanner();
-                updateFireButton();
+                // the robot moves again only if pairs wait in continuo: then the
+                // hand that pressed RIPRENDI gets its seconds to leave the mouse
+                if (!batchMode && !queue.isEmpty()) {
+                    arm(() -> {
+                        paused = false;
+                        refreshBanner();
+                        updateFireButton();
+                    });
+                } else {
+                    paused = false;
+                    refreshBanner();
+                    updateFireButton();
+                }
             } else if (batchMode) {
                 if (!queue.isEmpty()) startBlock();
             } else {
@@ -348,12 +367,78 @@ public class ScanModePanel extends JPanel {
             return;
         }
         blockDone = 0;
-        releasing = true;
         blockRunning = true;
-        updateFireButton();
         ctx.jobStarted(this::stopBlock);
-        ctx.jobProgress(AppTheme.PEACH, "ROBOT AL LAVORO",
-                        "0 / " + queue.size(), "registrate", 0, true);
+        // the lever was a mouse click: the robot starts after the countdown,
+        // never under the hand that is still leaving the mouse
+        arm(() -> {
+            if (!blockRunning) return;      // stopped meanwhile
+            releasing = true;
+            refreshBanner();
+            updateFireButton();
+            ctx.jobProgress(AppTheme.PEACH, "ROBOT AL LAVORO",
+                            "0 / " + queue.size(), "registrate", 0, true);
+        });
+    }
+
+    // ── the countdown after a lever pressed with the mouse ────────────────
+
+    /** Seconds the robot waits after the lever; 0 = at once. */
+    private int startWait() {
+        return Math.max(0, Math.min(10, cfg.getInt(SettingsManager.SCAN_START_WAIT, 3)));
+    }
+
+    /**
+     * Run {@code then} after the countdown, on the EDT. The operator reads it
+     * on the banner, on the lever (which turns into ANNULLA) and, in a block,
+     * on the HUD. STOP, ANNULLA, a mode switch or a new session cancel it.
+     */
+    private void arm(Runnable then) {
+        cancelArmQuietly();
+        int secs = startWait();
+        if (secs <= 0) { then.run(); return; }
+        armed = true;
+        armLeft = secs;
+        showArm();
+        armTimer = new javax.swing.Timer(1000, e -> {
+            armLeft--;
+            if (armLeft > 0) { showArm(); return; }
+            cancelArmQuietly();
+            then.run();
+        });
+        armTimer.setRepeats(true);
+        armTimer.start();
+    }
+
+    private void showArm() {
+        setState(ARMED, "PARTO TRA " + armLeft + "s — togli la mano dal mouse");
+        updateFireButton();
+        if (blockRunning) {
+            ctx.jobProgress(AppTheme.PEACH, "PARTO TRA " + armLeft + "s",
+                            "0 / " + queue.size(), "togli la mano dal mouse", 0, true);
+        }
+    }
+
+    /** Stop the countdown, nothing else (EDT). */
+    private void cancelArmQuietly() {
+        if (armTimer != null) armTimer.stop();
+        armTimer = null;
+        armed = false;
+    }
+
+    /** ANNULLA on the lever: no robot, the queue stays as it is. */
+    private void cancelArm() {
+        cancelArmQuietly();
+        releasing = false;
+        endBlock();
+        refreshBanner();
+        updateFireButton();
+        setState(WARN, "Avvio annullato: la coda resta com'era");
+    }
+
+    /** The countdown is running (the tests read it). */
+    boolean isArmed() {
+        return armed;
     }
 
     /**
@@ -377,6 +462,7 @@ public class ScanModePanel extends JPanel {
 
     /** STOP, from the HUD. */
     private void stopBlock() {
+        cancelArmQuietly();
         paused = true;
         releasing = false;
         endBlock();
@@ -495,7 +581,7 @@ public class ScanModePanel extends JPanel {
 
     private boolean canEditQueued(int row) {
         return batchMode && !releasing && !blockRunning && !burstBusy
-            && !verifying && queuedAt(row) != null;
+            && !armed && !verifying && queuedAt(row) != null;
     }
 
     private void editQueued(int row) {
@@ -819,7 +905,7 @@ public class ScanModePanel extends JPanel {
      * The debt is never dropped: the heartbeat retries until the lull arrives.
      */
     private void maybeAutoVerify() {
-        if (!verifyDue || verifying || burstBusy || paused) return;
+        if (!verifyDue || verifying || burstBusy || paused || armed) return;
         if (RobotGate.owner() != null) return;   // someone is clicking: the heartbeat retries
         if (!queue.isEmpty() || fieldsBusy) return;
         if (System.currentTimeMillis() - lastInputAt <= QUIET_MS) return;
@@ -832,7 +918,7 @@ public class ScanModePanel extends JPanel {
         if (verifying) return;
         // a block being released is checked at its end (the check would end
         // the block early: HUD gone, STOP gone, pairs still to send)
-        if (manual && releasing && !queue.isEmpty()) {
+        if (manual && (releasing || armed) && !queue.isEmpty()) {
             setState(WARN, "Verifica a fine blocco: " + queue.size() + " coppie ancora da inviare");
             return;
         }
@@ -846,6 +932,7 @@ public class ScanModePanel extends JPanel {
         int ey = cfg.getInt(SettingsManager.REG_EXPORT_COORD_Y, -1);
         if (!cfg.isSet(SettingsManager.REG_EXPORT_COORD_X, SettingsManager.REG_EXPORT_COORD_Y)) {
             setState(ERROR, "Memorizza «Export CSV» nelle Impostazioni (tab Verifica)");
+            if (manual) ctx.openSettings("Verifica");
             return;
         }
 
@@ -1099,6 +1186,7 @@ public class ScanModePanel extends JPanel {
 
     /** Why closing now would cut something short, or null. */
     String busyReason() {
+        if (armed) return "Il robot parte tra pochi secondi.";
         if (burstBusy) return "Il robot sta inviando una coppia.";
         if (verifying) return "C'è una verifica in corso.";
         if (!queue.isEmpty()) {
@@ -1121,7 +1209,11 @@ public class ScanModePanel extends JPanel {
 
     // the fire button changes job with the mode — and a stop always resumes here
     private void updateFireButton() {
-        if (paused) {
+        if (armed) {
+            btnFire.setText("ANNULLA AVVIO (" + armLeft + ")");
+            btnFire.setIcon(Icons.stop(AppTheme.ICON, AppTheme.ON_ACCENT));
+            btnFire.setEnabled(true);
+        } else if (paused) {
             btnFire.setText("RIPRENDI");
             btnFire.setIcon(Icons.play(AppTheme.ICON, AppTheme.ON_ACCENT));
             btnFire.setEnabled(true);
@@ -1143,6 +1235,7 @@ public class ScanModePanel extends JPanel {
             setState(ERROR, "Attendi la fine del ciclo in corso");
             return;
         }
+        if (armed) { cancelArmQuietly(); endBlock(); }
         // one click next to Verifica must not throw away a queue or an
         // unchecked trail: say what goes, and take No for an answer
         if (!queue.isEmpty() || sinceVerify > 0 || !toSettle.isEmpty()) {
@@ -1212,6 +1305,11 @@ public class ScanModePanel extends JPanel {
                 banner.setForeground(AppTheme.ON_ACCENT);
                 banner.setText(text != null ? text : "Controlla la coppia");
                 break;
+            case ARMED:
+                banner.setBackground(AppTheme.PEACH);
+                banner.setForeground(AppTheme.ON_ACCENT);
+                banner.setText(text != null ? text : "PARTO TRA POCO — togli la mano dal mouse");
+                break;
             case STUCK:
                 banner.setBackground(AppTheme.SURFACE2);
                 banner.setForeground(AppTheme.TEXT);
@@ -1257,6 +1355,7 @@ public class ScanModePanel extends JPanel {
         sticky = false;
         refreshCounter();
         if (burstBusy || verifying) return;
+        if (armed) { setState(ARMED, "PARTO TRA " + armLeft + "s — togli la mano dal mouse"); return; }
         boolean halfScanned = fieldsBusy && !queue.isEmpty()
             && System.currentTimeMillis() - fieldsBusyAt > STUCK_MS;
         if (paused)                       setState(PAUSED, null);

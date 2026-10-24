@@ -255,10 +255,14 @@
         <h2>Delete item</h2>
         <div class="field">
           <label>item Serial Number</label>
-          <input type="text" placeholder="" tabindex="20">
+          <input type="text" id="delSerial" placeholder="" autocomplete="off" tabindex="20">
         </div>
         <div class="btn-row">
-          <button class="btn btn-red">DELETE</button>
+          <button class="btn btn-red" id="btn-delete" onclick="deleteItem()">DELETE</button>
+        </div>
+        <div class="btn-hint" style="margin-top:6px">
+          Come il sito vero: DELETE cancella subito, senza conferma, e l'etichetta
+          sparisce dall'export.
         </div>
       </div>
 
@@ -442,6 +446,18 @@
     toast(step > 1
         ? "🖨 1 etichetta (la casella salta la numerazione di " + step + ")"
         : "🖨 1 etichetta stampata", "success");
+  };
+
+  // ── DELETE: subito, senza domande; l'etichetta sparisce dallo storico ────
+  window.deleteItem = function () {
+    var serial = el("delSerial").value.trim();
+    if (!serial) { toast("⚠ Inserisci il item Serial Number", "error"); return; }
+    var before = rows.length;
+    rows = rows.filter(function (r) { return r.s !== serial; });
+    el("delSerial").value = "";
+    render();
+    toast(before === rows.length ? "Non trovato: " + serial : "🗑 Cancellato: " + serial,
+          before === rows.length ? "error" : "success");
   };
 
   // ── seed / reset ──────────────────────────────────────────────────────────

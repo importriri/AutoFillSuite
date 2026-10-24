@@ -125,6 +125,14 @@ public final class RegistrationVerifier {
         return out;
     }
 
+    // ── presence ─────────────────────────────────────────────────────────────
+    // every label the export holds at all, printed or registered. a label
+    // deleted from the portal disappears from the export: this is what the
+    // check of the Cancella tab asks.
+    public java.util.Set<String> presentCodes(List<String> exportLines) {
+        return new java.util.LinkedHashSet<>(parse(exportLines).keySet());
+    }
+
     // ── parsing ──────────────────────────────────────────────────────────────
     // raw export -> label mapped to every lot seen for it (a list, so a label
     // that shows up twice is not silently collapsed). blank lines and a leading

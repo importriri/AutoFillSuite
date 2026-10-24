@@ -66,6 +66,11 @@ public class HudPanel extends JPanel {
 
         add(top, BorderLayout.NORTH);
         add(row, BorderLayout.CENTER);
+        JPanel warnRow = new JPanel(new BorderLayout());
+        warnRow.setOpaque(false);
+        warnRow.setBorder(BorderFactory.createEmptyBorder(0, 8, 4, 8));
+        warnRow.add(warnLabel, BorderLayout.CENTER);
+        add(warnRow, BorderLayout.SOUTH);
         idle();
     }
 
@@ -86,6 +91,31 @@ public class HudPanel extends JPanel {
         caption.setText(cap.toUpperCase());
         if (percent >= 0) line.setValue(percent);
         btnStop.setEnabled(stoppable);
+    }
+
+    /**
+     * The bar sits on the robot's way and may not move itself: it says so in
+     * red over everything else. null = the warning is gone.
+     */
+    public void warn(String text) {
+        if (text == null) {
+            warnLabel.setVisible(false);
+        } else {
+            warnLabel.setText(text);
+            warnLabel.setVisible(true);
+        }
+        revalidate();
+        repaint();
+    }
+
+    private final JLabel warnLabel = warnLabel();
+
+    private static JLabel warnLabel() {
+        JLabel l = AppTheme.banner();
+        l.setBackground(AppTheme.RED);
+        l.setForeground(AppTheme.ON_ACCENT);
+        l.setVisible(false);
+        return l;
     }
 
     public void tone(Color c) {

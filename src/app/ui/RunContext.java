@@ -42,4 +42,10 @@ public interface RunContext {
     default String busyElsewhere(Object self) {
         return null;
     }
+
+    /**
+     * A coordinate is missing: open the settings on the tab where it is
+     * memorized, instead of leaving the operator to find it.
+     */
+    default void openSettings(String tab) { }
 }

@@ -84,6 +84,34 @@ public final class WindowGuard {
         return true;
     }
 
+    // ── the watch: the window on the robot's way, while it is open ──────────
+
+    /** What the window does about a target it covers right now. */
+    public enum Watch {
+        /** nothing covered, or the guard is off */
+        CLEAR,
+        /** the robot is still: red strip, the operator moves it (it is under his hand) */
+        WARN,
+        /** the robot works and may move it: out of the way, now */
+        MOVE,
+        /** the robot works but is mid-step: move at the next pause, never mid-burst */
+        WAIT
+    }
+
+    /**
+     * The rule, pure: when nobody drives the robot the window never moves by
+     * itself (the operator may be dragging it); while a job runs it steps
+     * aside, but only between two steps of the robot, or the click back on the
+     * app would land where the window used to be. With automatic moving off,
+     * it can only warn.
+     */
+    public static Watch watch(boolean guardOn, boolean autoMove, boolean jobRunning,
+                              boolean robotMidStep, List<String> hits) {
+        if (!guardOn || hits == null || hits.isEmpty()) return Watch.CLEAR;
+        if (!jobRunning || !autoMove) return Watch.WARN;
+        return robotMidStep ? Watch.WAIT : Watch.MOVE;
+    }
+
     private static Rectangle pad(Rectangle r) {
         return new Rectangle(r.x - MARGIN, r.y - MARGIN,
                              r.width + 2 * MARGIN, r.height + 2 * MARGIN);
