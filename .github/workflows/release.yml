@@ -1,0 +1,127 @@
+name: release
+
+# A tag v1.2.3 builds the verified JAR, wraps it into a Windows app that needs
+# no Java and no installation (jpackage app-image with its own trimmed runtime),
+# and publishes both on the GitHub release of that tag. Run by hand, it only
+# builds the two files as workflow artifacts.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  jar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: install build and display tools
+        run: sudo apt-get update && sudo apt-get install -y ant xvfb
+
+      - name: verify source and standalone jar
+        run: ./verify.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jar
+          path: dist/AutoFillSuite.jar
+          if-no-files-found: error
+
+  windows:
+    needs: jar
+    runs-on: windows-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: jar
+          path: dist
+
+      - name: build the Windows app (no Java, no installer)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '1.0.0'
+          if ('${{ github.ref_type }}' -eq 'tag') { $version = '${{ github.ref_name }}'.TrimStart('v') }
+          # only the modules the jar really uses, plus the extra charsets an
+          # ANSI export may need: a runtime of ~40 MB instead of a whole JDK
+          $mods = (jdeps --ignore-missing-deps --print-module-deps dist/AutoFillSuite.jar).Trim()
+          if (-not $mods) { $mods = 'java.base,java.desktop' }
+          $mods = "$mods,jdk.charsets"
+          Write-Host "modules: $mods"
+          jlink --add-modules $mods --strip-debug --no-header-files --no-man-pages `
+                --compress=zip-6 --output build/runtime
+          jpackage --type app-image --name AutoFillSuite `
+                   --input dist --main-jar AutoFillSuite.jar --main-class app.Main `
+                   --runtime-image build/runtime --dest build/image `
+                   --app-version $version --vendor importriri `
+                   --description "AutoFillSuite - registrazione etichette sul portale" `
+                   --java-options "-Dfile.encoding=UTF-8"
+          if (-not (Test-Path build/image/AutoFillSuite/AutoFillSuite.exe)) { throw 'no exe built' }
+          Compress-Archive -Path build/image/AutoFillSuite -DestinationPath AutoFillSuite-windows.zip
+          Get-Item AutoFillSuite-windows.zip | Select-Object Name, Length
+
+      # a smoke start, not a gate: a hosted runner may have no desktop to open
+      # a window on. The JAR's own startup is already verified on Linux.
+      - name: the exe starts (and is stopped after a few seconds)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath build/image/AutoFillSuite/AutoFillSuite.exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw "AutoFillSuite.exe exited at once with code $($p.ExitCode)" }
+          Stop-Process -Id $p.Id -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: AutoFillSuite-windows.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [jar, windows]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+
+      - name: release notes from the changelog
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          awk -v v="$ver" '
+            $0 ~ "^## " v "( |$)" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "**Windows:** scarica \`AutoFillSuite-windows.zip\`, estrai la cartella e apri \`AutoFillSuite.exe\`. Non serve Java e non serve installare niente."
+            echo
+            echo "**Con Java già installato:** \`AutoFillSuite.jar\`."
+          } >> notes.md
+          cat notes.md
+
+      - name: publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            assets/windows/AutoFillSuite-windows.zip assets/jar/AutoFillSuite.jar \
+            --title "AutoFillSuite $GITHUB_REF_NAME" --notes-file notes.md
