@@ -33,8 +33,10 @@ Every release ships two files:
   then "Run anyway").
 - **`AutoFillSuite.jar`** — for a PC that already has Java 8 or newer.
 
-The release workflow builds both from a tag: the JAR through `verify.sh`, then
-`jlink` with only the modules the JAR uses and `jpackage --type app-image`.
+The release workflow builds both: the JAR through `verify.sh`, then `jlink`
+with only the modules the JAR uses and `jpackage --type app-image`. It runs on
+a pushed tag `v1.2.3`, on a release published on GitHub (the files are added to
+it), or from Actions > release > Run workflow with the version to publish.
 
 ## Workflows
 
