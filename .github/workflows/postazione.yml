@@ -53,7 +53,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $fail = 0
-          function Check($what, $cond) { if ($cond) { Write-Host "  ok   $what" } else { Write-Host "  FAIL $what"; $script:fail++ } }
+          function Check($what, $cond, $seen = '') { if ($cond) { Write-Host "  ok   $what" } else { Write-Host "::error::FAIL $what -- seen: $seen"; $script:fail++ } }
           $desk = [Environment]::GetFolderPath('Desktop')
           $sh = New-Object -ComObject WScript.Shell
           $url = 'https://lifecycle.example.test/supplier/tca'
@@ -81,25 +81,30 @@ jobs:
           Check 'switched on' ($kv['station.autoStart'] -eq 'true')
           Check 'the day it last prepared is gone, so the next start prepares' (-not $kv.ContainsKey('station.lastDay'))
           Check 'the other settings are untouched' ($kv['reg.downloadDir'] -eq 'C:\Users\x\Downloads' -and $kv['ui.flavor'] -eq 'latte')
-          if ($fail -gt 0) { throw "$fail checks failed" }
+          if ($fail -gt 0) { Write-Host "::error::$fail checks failed"; exit 1 }
+          exit 0
 
       - name: prepare again with another address, then undo
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $fail = 0
-          function Check($what, $cond) { if ($cond) { Write-Host "  ok   $what" } else { Write-Host "  FAIL $what"; $script:fail++ } }
-          & "$env:RUNNER_TEMP\AutoFillSuite\prepara-postazione.ps1" -Url 'https://other.example.test/tca' -Quiet
+          function Check($what, $cond, $seen = '') { if ($cond) { Write-Host "  ok   $what" } else { Write-Host "::error::FAIL $what -- seen: $seen"; $script:fail++ } }
+          $out = & "$env:RUNNER_TEMP\AutoFillSuite\prepara-postazione.ps1" -Url 'https://other.example.test/tca' -Quiet *>&1
+          $out | ForEach-Object { Write-Host $_; if ("$_" -like '*[KO]*') { Write-Host "::error::second run: $_" } }
           $desk = [Environment]::GetFolderPath('Desktop')
           $sh = New-Object -ComObject WScript.Shell
           $c = $sh.CreateShortcut((Join-Path $desk 'Google Chrome.lnk'))
-          Check 'a second run replaces the address, never two' ($c.Arguments -eq '--profile-directory="Default" "https://other.example.test/tca"')
-          Check 'and keeps the very first original' ((Get-ChildItem "$env:LOCALAPPDATA\AutoFillSuite-icone-originali" -Filter *.lnk).Count -eq 1)
-          & "$env:RUNNER_TEMP\AutoFillSuite\prepara-postazione.ps1" -Undo -Quiet
+          Check 'a second run replaces the address, never two' ($c.Arguments -eq '--profile-directory="Default" "https://other.example.test/tca"') $c.Arguments
+          $kept = @(Get-ChildItem "$env:LOCALAPPDATA\AutoFillSuite-icone-originali" -Filter *.lnk)
+          Check 'and keeps the very first original' ($kept.Count -eq 1) ($kept.Name -join ', ')
+          $out = & "$env:RUNNER_TEMP\AutoFillSuite\prepara-postazione.ps1" -Undo -Quiet *>&1
+          $out | ForEach-Object { Write-Host $_; if ("$_" -like '*[KO]*') { Write-Host "::error::undo: $_" } }
           $c = $sh.CreateShortcut((Join-Path $desk 'Google Chrome.lnk'))
-          Check 'undo puts the Chrome icon back' ($c.Arguments -eq '--profile-directory="Default"')
+          Check 'undo puts the Chrome icon back' ($c.Arguments -eq '--profile-directory="Default"') $c.Arguments
           Check 'undo removes the Portale icon' (-not (Test-Path (Join-Path $desk 'Portale Lifecycle.lnk')))
           Check 'undo removes the start with Windows' (-not (Test-Path (Join-Path ([Environment]::GetFolderPath('Startup')) 'AutoFillSuite.lnk')))
           $props = Get-Content (Join-Path $env:USERPROFILE '.autofill_suite.properties')
-          Check 'undo switches the station off' ($props -contains 'station.autoStart=false')
-          if ($fail -gt 0) { throw "$fail checks failed" }
+          Check 'undo switches the station off' ($props -contains 'station.autoStart=false') ($props -join ' | ')
+          if ($fail -gt 0) { Write-Host "::error::$fail checks failed"; exit 1 }
+          exit 0
