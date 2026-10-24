@@ -132,18 +132,21 @@ Deve succedere:
 ## 10. Cancella, con UNA etichetta rovinata (5 minuti)
 
 Prima: Impostazioni > **Cancella** > memorizzare **Casella Cancella** (il campo
-del riquadro Delete) e **Tasto DELETE**.
+del riquadro Delete).
 
 1. Tab **CANCELLA**, sparare un'etichetta di prova da buttare, INVIO.
 2. Premere **CANCELLA DAL PORTALE (1)**.
 
 Deve succedere:
-- il conto alla rovescia, poi il robot clicca il campo, incolla, preme DELETE;
+- il conto alla rovescia, poi il robot clicca il campo, incolla, preme INVIO;
 - alla fine l'app fa un Export: **CANCELLATE E CONTROLLATE — 1**;
 - sul portale l'etichetta non c'è più; nella riga OGGI compare «1 cancellata».
 
 Se il banner dice **ANCORA SUL PORTALE**: il click è andato fuori bersaglio o il
-portale non ha cancellato. Rimemorizzare le due coordinate e riprovare.
+portale non ha cancellato. Rimemorizzare la Casella Cancella e riprovare.
+
+Poi con **Quantità 3** e la prima di tre etichette da buttare: in lista ne
+entrano tre consecutive, e la quantità torna a 1.
 
 ## 11. I buchi della giornata
 

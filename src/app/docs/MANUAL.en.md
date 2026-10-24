@@ -23,14 +23,14 @@ The same text is readable inside the app: **Impostazioni > Manuale**.
    - **Impostazioni > A scansione**: the first form field again, for the
      dual-QR mode.
    - **Impostazioni > Cancella**: the serial field of the portal's **Delete**
-     box ("Casella Cancella") and the red **DELETE** button.
+     box ("Casella Cancella").
 4. **Impostazioni > Verifica > Cartella download**: the folder where the
    browser saves the portal's CSV export. **Cartella report**: where the
    daily CSV report for the quality office is written. **Prefisso export**:
    the beginning of the export file name (leave the default unless the portal
    changes).
-5. Theme (Mocha dark / Latte light) is in the settings header. It applies
-   at the next launch.
+5. Theme (Latte light, the default / Mocha dark) is in the settings header.
+   It applies at the next launch.
 6. **Impostazioni > Giornata > Postazione all'avvio**: paste the portal's
    address and pick the print program (the `.exe` file, not the shortcut).
    From the next day on, the first start of the day opens the portal and
@@ -367,16 +367,20 @@ AutoFillSuite keeps a copy of every imported file in the report folder
 ## 9. CANCELLA (spoiled labels)
 
 For spoiled or discarded labels that must leave the portal. The portal deletes
-on the **DELETE** click, with no question, and the label disappears from its
-export.
+when **ENTER** is pressed in its Delete field, with no question: it empties the
+field and the label disappears from its export.
 
 1. **CANCELLA** in the top selector.
 2. Scan (or type) the label and press ENTER: it joins the **list** and the
-   field clears. Add as many as you need. **Togli** removes the selected one,
-   **Svuota** the whole list: the portal is not touched.
+   field clears. Add as many as you need. For a whole pack use **Quantità**,
+   as in Intervallo: scan the first, set for example 20 and ENTER, and the
+   first and the 19 after it join the list. The quantity goes back to 1 after
+   every ENTER. **Togli** removes the selected one, **Svuota** the whole list:
+   the portal is not touched.
 3. Press the red **CANCELLA DAL PORTALE (n)**. The robot counts down
    (**PARTO TRA 3s**: take your hand off the mouse), then for every label it
-   clicks the Casella Cancella, pastes the code and presses DELETE.
+   clicks the Casella Cancella, pastes the code and presses ENTER, one after
+   the other.
 4. At the end of the list the app makes an **Export CSV** and checks the
    labels are gone: **CANCELLATE E CONTROLLATE**. Labels still present turn red
    (**ANCORA SUL PORTALE**): put them back in the list and try again.
@@ -388,14 +392,18 @@ The safeties:
   the app asks, saying when and with which lot.
 - **A lot** scanned into the field is refused ("Questo è un LOTTO"), when the
   two QR codes are described in **Impostazioni > A scansione**.
-- **Mouse moved**: before DELETE nothing is deleted and the robot stops; after
-  DELETE the label is deleted and the robot stops anyway.
+- **Mouse moved**: before ENTER nothing is deleted and the robot stops; after
+  ENTER the label is deleted and the robot stops anyway.
+- **A range never starts by itself**, not even with "Cancella subito": you see
+  it in the list first, then press the red lever.
 - **The list is saved on disk** (`AutoFillSuite_cancella_lista.txt`): close
   the app and you find it again as it was.
 
 A deleted label leaves the **OGGI** count and fills its place in the
 numbering: it is no longer a hole. **Impostazioni > Cancella** can also start
-the robot at every ENTER, without the red lever.
+the robot at every ENTER (single labels), without the red lever; and, should
+the portal ever stop deleting on ENTER, make it click the **DELETE** button
+instead (its coordinate is then needed).
 
 ## 10. The day: holes, reopening, workstation
 

@@ -19,12 +19,14 @@ import java.util.Set;
 
 /**
  * Mode: CANCELLA — labels spoiled or thrown away, deleted from the portal.
- * Scan (or type) a label, ENTER: it joins the list and the field clears. The
- * big red lever deletes the whole list, after a countdown; a setting deletes
- * at every ENTER instead.
+ * Scan (or type) a label, ENTER: it joins the list and the field clears; with
+ * a Quantità above 1 the label starts a range, like Intervallo (the last three
+ * digits move). The big red lever deletes the whole list, after a countdown;
+ * a setting deletes at every ENTER instead.
  *
- * The portal deletes on the DELETE click, no question asked, and the label
- * disappears from its CSV export: the check at the end asks exactly that. A
+ * The portal deletes when ENTER is pressed in its Delete field (it empties the
+ * field too), no question asked, and the label disappears from its CSV export:
+ * the check at the end asks exactly that. A
  * deleted label leaves the day's count, and fills its place in the numbering
  * (it is not a hole any more).
  *
@@ -59,6 +61,7 @@ public class DeleteModePanel extends JPanel {
     private RobotGate.Lease lease;
 
     private JTextField tfCode;
+    private JSpinner spCount;
     private JList<String> jlist;
     private JLabel banner;
     private StatPair stats;
@@ -97,6 +100,16 @@ public class DeleteModePanel extends JPanel {
         r1.add(btnClearField, BorderLayout.EAST);
         g.gridx = 1; g.weightx = 1.0;
         card.add(r1, g);
+
+        // quantità: the label is the first of a range, like Intervallo
+        y++; g.gridx = 0; g.gridy = y; g.weightx = 0;
+        card.add(AppTheme.label("Quantità"), g);
+        spCount = AppTheme.spinnerInt(1, 1, 999);
+        spCount.setToolTipText("Quante etichette consecutive da cancellare, a partire da quella sparata"
+                               + " (torna a 1 dopo ogni INVIO)");
+        spCount.addChangeListener(e -> preview());
+        g.gridx = 1; g.weightx = 1.0;
+        card.add(spCount, g);
 
         g.gridx = 0; g.gridwidth = 2;
         y++; g.gridy = y;
@@ -165,7 +178,7 @@ public class DeleteModePanel extends JPanel {
 
     // ── the list ──────────────────────────────────────────────────────────
 
-    /** ENTER on the field: the label joins the list (and, in immediate mode, goes). */
+    /** ENTER on the field: the label (or its range) joins the list; in immediate mode, a single one goes. */
     void accept() {
         String code = tfCode.getText().trim();
         if (code.isEmpty()) return;
@@ -175,7 +188,19 @@ public class DeleteModePanel extends JPanel {
             state(AppTheme.RED, AppTheme.ON_ACCENT, problem);
             return;
         }
-        if (list.contains(code)) {
+        try { spCount.commitEdit(); } catch (java.text.ParseException ignored) { }
+        int count = (Integer) spCount.getValue();
+        List<String> codes;
+        try {
+            codes = range(code, count);
+        } catch (IllegalArgumentException past999) {
+            Sounds.error();
+            state(AppTheme.RED, AppTheme.ON_ACCENT, "L'intervallo supera 999: dividilo in due");
+            return;
+        }
+        List<String> fresh = new ArrayList<>();
+        for (String c : codes) if (!list.contains(c)) fresh.add(c);
+        if (fresh.isEmpty()) {
             Sounds.error();
             state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Già in lista: " + code);
             tfCode.setText("");
@@ -183,20 +208,69 @@ public class DeleteModePanel extends JPanel {
         }
         // a label registered today with a lot is a GOOD piece on the portal:
         // deleting it is the expensive mistake, so this is the one question
-        String[] reg = results.registeredToday().get(code);
-        if (reg != null && !confirmer.test(code + " è registrata oggi alle " + reg[1]
-                + " con il lotto " + reg[0] + ".\n\nÈ davvero rovinata? Verrà CANCELLATA dal portale.")) {
-            state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Non messa in lista: " + code);
-            tfCode.setText("");
-            return;
+        Map<String, String[]> today = results.registeredToday();
+        List<String> good = new ArrayList<>();
+        for (String c : fresh) {
+            String[] reg = today.get(c);
+            if (reg != null) good.add(c + "  (alle " + reg[1] + " con " + reg[0] + ")");
         }
-        list.addElement(code);
+        if (!good.isEmpty()) {
+            StringBuilder m = new StringBuilder();
+            if (good.size() == 1 && fresh.size() == 1) {
+                String[] reg = today.get(fresh.get(0));
+                m.append(fresh.get(0)).append(" è registrata oggi alle ").append(reg[1])
+                 .append(" con il lotto ").append(reg[0]).append(".\n\n");
+            } else {
+                m.append(good.size()).append(good.size() == 1 ? " etichetta è registrata" : " etichette sono registrate")
+                 .append(" oggi con un lotto:\n\n");
+                for (int i = 0; i < good.size() && i < 10; i++) m.append(good.get(i)).append('\n');
+                if (good.size() > 10) m.append("... e altre ").append(good.size() - 10).append('\n');
+                m.append('\n');
+            }
+            m.append("È davvero rovinata? Verrà CANCELLATA dal portale.");
+            if (!confirmer.test(m.toString())) {
+                state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Non messa in lista: " + code);
+                tfCode.setText("");
+                return;
+            }
+        }
+        for (String c : fresh) list.addElement(c);
         tfCode.setText("");
+        spCount.setValue(1);              // never leave a range armed for the next scan
         tfCode.requestFocusInWindow();
         saveList();
         refresh();
-        state(AppTheme.SURFACE2, AppTheme.TEXT, "IN LISTA: " + code);
-        if (cfg.getBool(SettingsManager.DEL_IMMEDIATE, false) && !running && !verifying) start();
+        state(AppTheme.SURFACE2, AppTheme.TEXT, fresh.size() == 1 ? "IN LISTA: " + fresh.get(0)
+              : "IN LISTA: " + fresh.size() + " etichette, " + RangeModePanel.rangePreview(
+                    fresh.get(0), fresh.get(fresh.size() - 1)).replaceFirst("^Da ", "da "));
+        // a range waits for the lever even in immediate mode: one look first
+        if (fresh.size() == 1 && cfg.getBool(SettingsManager.DEL_IMMEDIATE, false)
+                && !running && !verifying) start();
+    }
+
+    /** The label and the ones after it: the last three digits move, as in Intervallo. */
+    static List<String> range(String first, int count) {
+        if (count <= 1) {
+            List<String> one = new ArrayList<>();
+            one.add(first);
+            return one;
+        }
+        String prefix = first.substring(0, first.length() - 3);
+        long seq = Long.parseLong(first.substring(first.length() - 3));
+        return RegistrationVerifier.expectedCodes(prefix, seq, count);
+    }
+
+    /** The range in the status bar while the operator sets the quantity. */
+    private void preview() {
+        String code = tfCode.getText().trim();
+        int count = (Integer) spCount.getValue();
+        if (code.isEmpty() || count <= 1 || shapeProblem(code) != null) return;
+        try {
+            List<String> r = range(code, count);
+            status.setString(count + " da cancellare: " + RangeModePanel.rangePreview(r.get(0), r.get(r.size() - 1)));
+        } catch (IllegalArgumentException past999) {
+            status.setString("L'intervallo supera 999");
+        }
     }
 
     /** Labels from elsewhere (a hole of the day): into the list, checked like a scan. */
@@ -287,16 +361,19 @@ public class DeleteModePanel extends JPanel {
     void start() {
         if (running || verifying) return;
         if (list.isEmpty()) { warn("La lista è vuota: spara prima le etichette da cancellare"); return; }
+        boolean byClick = cfg.getBool(SettingsManager.DEL_BY_CLICK, false);
         if (!cfg.isSet(SettingsManager.DEL_COORD_X, SettingsManager.DEL_COORD_Y)
-                || !cfg.isSet(SettingsManager.DEL_BUTTON_X, SettingsManager.DEL_BUTTON_Y)) {
-            warn("Memorizza «Casella Cancella» e «Tasto DELETE» nelle Impostazioni (tab Cancella)");
+                || (byClick && !cfg.isSet(SettingsManager.DEL_BUTTON_X, SettingsManager.DEL_BUTTON_Y))) {
+            warn(byClick ? "Memorizza «Casella Cancella» e «Tasto DELETE» nelle Impostazioni (tab Cancella)"
+                         : "Memorizza «Casella Cancella» nelle Impostazioni (tab Cancella)");
             ctx.openSettings("Cancella");
             return;
         }
         final Point field = new Point(cfg.getInt(SettingsManager.DEL_COORD_X, -1),
                                       cfg.getInt(SettingsManager.DEL_COORD_Y, -1));
-        final Point button = new Point(cfg.getInt(SettingsManager.DEL_BUTTON_X, -1),
-                                       cfg.getInt(SettingsManager.DEL_BUTTON_Y, -1));
+        // null: ENTER in the field deletes (the portal empties it too)
+        final Point button = !byClick ? null : new Point(cfg.getInt(SettingsManager.DEL_BUTTON_X, -1),
+                                                         cfg.getInt(SettingsManager.DEL_BUTTON_Y, -1));
         String blocked = ctx.blockingCollision(targets(field, button));
         if (blocked != null) { warn(blocked); return; }
         if (!takeRobot()) return;
@@ -337,7 +414,7 @@ public class DeleteModePanel extends JPanel {
             DeleteBurst.Timing t = new DeleteBurst.Timing(
                 cfg.getInt(SettingsManager.DEL_FOCUS, 300), cfg.getInt(SettingsManager.SCAN_KEY, 70),
                 cfg.getInt(SettingsManager.DEL_AFTER, 600));
-            int pause = cfg.getInt(SettingsManager.DEL_PAUSE, 800);
+            int pause = cfg.getInt(SettingsManager.DEL_PAUSE, 300);
             boolean guarded = cfg.getBool(SettingsManager.SCAN_FAILSAFE, true);
             boolean first = true;
             for (;;) {
@@ -357,7 +434,7 @@ public class DeleteModePanel extends JPanel {
                     "CANCELLO " + code + " — non toccare"));
                 DeleteBurst.Outcome o = DeleteBurst.run(hands, field, button, code, t, guarded, null);
                 if (o == DeleteBurst.Outcome.NOT_DELETED) {
-                    stopWhy = "mouse mosso prima di DELETE: " + code + " NON cancellata";
+                    stopWhy = "mouse mosso prima di INVIO: " + code + " NON cancellata";
                     return;
                 }
                 if (o == DeleteBurst.Outcome.FAILED) {
@@ -367,7 +444,7 @@ public class DeleteModePanel extends JPanel {
                 doneHere++;
                 SwingUtilities.invokeAndWait(() -> deleted(code));
                 if (o == DeleteBurst.Outcome.DELETED_THEN_GRABBED) {
-                    stopWhy = "mouse mosso dopo DELETE: " + code + " cancellata, robot fermo";
+                    stopWhy = "mouse mosso dopo INVIO: " + code + " cancellata, robot fermo";
                     return;
                 }
             }
@@ -556,7 +633,7 @@ public class DeleteModePanel extends JPanel {
     private static Map<String, Point> targets(Point field, Point button) {
         Map<String, Point> t = new LinkedHashMap<>();
         t.put("Casella Cancella", field);
-        t.put("Tasto DELETE", button);
+        if (button != null) t.put("Tasto DELETE", button);
         return t;
     }
 
@@ -575,6 +652,7 @@ public class DeleteModePanel extends JPanel {
         }
         btnRemove.setEnabled(!busy && jlist.getSelectedIndex() >= 0);
         btnClear.setEnabled(!busy && !list.isEmpty());
+        spCount.setEnabled(!verifying);
         btnVerify.setEnabled(!busy && !deletedRows.isEmpty());
         tfCode.setEnabled(!verifying);
     }
@@ -606,6 +684,11 @@ public class DeleteModePanel extends JPanel {
         List<String> out = new ArrayList<>();
         for (int i = 0; i < list.size(); i++) out.add(list.get(i));
         return out;
+    }
+
+    /** The quantity (the tests set it). */
+    JSpinner count() {
+        return spCount;
     }
 
     /** The scan field, for focusHome when the tab is shown. */

@@ -550,6 +550,11 @@
     el("eff-table").style.display = eff.order.length ? "table" : "none";
   }
 
+  // ENTER nel campo Delete cancella, come DELETE (il sito vero fa lo stesso)
+  el("delSerial").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); window.deleteItem(); }
+  });
+
   // ENTER nel campo batch non salva (come il Vuetify del sito vero)
   el("batch").addEventListener("keydown", function (e) {
     if (e.key === "Enter") e.preventDefault();

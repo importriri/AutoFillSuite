@@ -27,7 +27,7 @@ public final class AppTheme {
 
     // ── flavor, read once at startup ─────────────────────────────────────
     public static final boolean LATTE = "latte".equalsIgnoreCase(
-        SettingsManager.getInstance().get(SettingsManager.UI_FLAVOR, "mocha"));
+        SettingsManager.getInstance().get(SettingsManager.UI_FLAVOR, "latte"));
 
     private static Color pick(int mocha, int latte) {
         return new Color(LATTE ? latte : mocha);

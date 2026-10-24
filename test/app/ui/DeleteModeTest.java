@@ -55,6 +55,8 @@ public final class DeleteModeTest {
         theList_survivesAClosedApp();
         stillOnThePortal_isRed();
         immediate_deletesAtEnter();
+        quantity_listsARange_likeIntervallo();
+        byClick_usesTheDeleteButton();
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -74,8 +76,8 @@ public final class DeleteModeTest {
         check("the countdown came first: two seconds", f.hands.sleeps1000() == 2);
         check("the countdown was on the HUD", f.bar.toString().contains("PARTO TRA"));
         check("both labels are deleted from the portal", portal.codes.size() == 1 && portal.codes.contains("T_001"));
-        check("the sequence is click field, paste, click DELETE",
-              f.hands.steps.toString().startsWith("[DBL 300,200, PASTE T_002, CLICK 300,260"));
+        check("the sequence is click field, paste, ENTER",
+              f.hands.steps.toString().startsWith("[DBL 300,200, PASTE T_002, ENTER, DBL 300,200, PASTE T_003, ENTER"));
         check("the list is empty again", listed(f.p).isEmpty());
         String[] day = { "" };
         SwingUtilities.invokeAndWait(() -> { f.rp.refreshDay(); day[0] = f.rp.dayText(); });
@@ -126,9 +128,9 @@ public final class DeleteModeTest {
         lever(f.p);
         waitFor(() -> !busy(f.p), 10000);
         check("the mouse taken before DELETE: nothing deleted", portal.codes.size() == 2);
-        check("DELETE was never clicked", !f.hands.steps.toString().contains("CLICK 300,260"));
+        check("ENTER was never pressed", !f.hands.steps.toString().contains("ENTER"));
         check("both labels stay in the list", listed(f.p).size() == 2);
-        check("the banner says why", banner(f.p).contains("mouse mosso prima di DELETE"));
+        check("the banner says why", banner(f.p).contains("mouse mosso prima di INVIO"));
     }
 
     private static void theList_survivesAClosedApp() throws Exception {
@@ -178,6 +180,46 @@ public final class DeleteModeTest {
         cfg.save();
     }
 
+    private static void quantity_listsARange_likeIntervallo() throws Exception {
+        Files.deleteIfExists(app.config.AppFiles.deleteList().toPath());
+        Fixture f = fixture(new Portal());
+        final List<String> asked = new ArrayList<>();
+        SwingUtilities.invokeAndWait(() -> {
+            f.rp.beginRun(1, "L7");
+            f.rp.addLiveRow("Q_011", 1);
+            f.p.confirmer = m -> { asked.add(m); return true; };
+            f.p.count().setValue(3);
+        });
+        type(f.p, "Q_010");
+        check("a quantity of 3 lists the label and the two after it",
+              listed(f.p).equals(java.util.Arrays.asList("Q_010", "Q_011", "Q_012")));
+        check("one question names the label of the range registered today",
+              asked.size() == 1 && asked.get(0).contains("Q_011") && asked.get(0).contains("L7"));
+        final int[] q = { 0 };
+        SwingUtilities.invokeAndWait(() -> q[0] = (Integer) f.p.count().getValue());
+        check("the quantity goes back to 1 after the ENTER", q[0] == 1);
+        SwingUtilities.invokeAndWait(() -> f.p.count().setValue(5));
+        type(f.p, "Q_998");
+        check("a range past 999 is refused", !listed(f.p).contains("Q_998") && banner(f.p).contains("999"));
+        Files.deleteIfExists(app.config.AppFiles.deleteList().toPath());
+    }
+
+    private static void byClick_usesTheDeleteButton() throws Exception {
+        SettingsManager cfg = SettingsManager.getInstance();
+        cfg.set(SettingsManager.DEL_BY_CLICK, true);
+        cfg.save();
+        Portal portal = new Portal("C_001");
+        Fixture f = fixture(portal);
+        type(f.p, "C_001");
+        lever(f.p);
+        waitFor(() -> !busy(f.p), 10000);
+        check("with the click option the robot clicks DELETE instead of ENTER",
+              f.hands.steps.toString().contains("CLICK 300,260") && !f.hands.steps.toString().contains("ENTER")
+              && portal.codes.isEmpty());
+        cfg.set(SettingsManager.DEL_BY_CLICK, false);
+        cfg.save();
+    }
+
     // ── fakes ────────────────────────────────────────────────────────────
 
     /** The portal: a set of labels; DELETE removes the label in the field. */
@@ -204,6 +246,12 @@ public final class DeleteModeTest {
         @Override public void pasteText(String t) { steps.add("PASTE " + t); portal.field = t; pasted = true; }
         @Override public void click(int x, int y) {
             steps.add("CLICK " + x + "," + y);
+            if (!portal.ignoreDeletes) portal.codes.remove(portal.field);
+            portal.field = "";
+        }
+        // ENTER in the Delete field deletes and empties it, like the real portal
+        @Override public void pressEnter() {
+            steps.add("ENTER");
             if (!portal.ignoreDeletes) portal.codes.remove(portal.field);
             portal.field = "";
         }

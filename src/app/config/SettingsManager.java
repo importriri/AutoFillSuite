@@ -182,6 +182,7 @@ public class SettingsManager {
     public static final String DEL_AFTER         = "del.after";        // ms after DELETE
     public static final String DEL_PAUSE         = "del.pause";        // ms between two labels
     public static final String DEL_IMMEDIATE     = "del.immediate";    // ENTER on a scan deletes at once
+    public static final String DEL_BY_CLICK      = "del.byClick";      // click DELETE instead of ENTER in the field
     public static final String DEL_VERIFY_AUTO   = "del.verifyAuto";   // export check at the end
 
     // Postazione — what the first start of the day opens

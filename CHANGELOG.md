@@ -6,10 +6,11 @@
 - Showed the day with one row per label and counted it the way the portal does: the last registration wins, so a range stopped and started again is no longer counted twice. The OGGI line under the view switch says how many labels the day holds.
 - Reopened the day as it was left: the day view and the count are read back from the day's report at start, so a closed app no longer starts from zero.
 - Found the holes in the day's numbering per label type, in every mode: a red OGGI line, a Buchi view with type, from, to and how many, and the day's holes in AutoFillSuite_buchi_<date>.csv. A jump wider than Giornata > Buco più largo is a grey jump, never missing work.
-- Added the CANCELLA mode: spoiled labels scanned into a list (saved on disk), deleted from the portal after a countdown with the mouse checked before DELETE, then checked on the export; a deleted label leaves the day's count and fills its hole. A hole can be sent to the list in one click; a label registered today asks before it is listed.
+- Added the CANCELLA mode: spoiled labels scanned into a list (saved on disk), one at a time or as a range with Quantità like Intervallo, deleted from the portal after a countdown (paste and ENTER in its Delete field, the mouse checked before ENTER; clicking DELETE is an option), then checked on the export; a deleted label leaves the day's count and fills its hole. A hole can be sent to the list in one click; labels registered today ask before they are listed.
 - Watched the window while the app is open: over a coordinate the robot clicks, the header turns red with Spostala while the robot is still, and the window steps aside by itself while the robot works, only between two bursts.
 - Opened the portal and started the print program at the first start of the day (Giornata > Postazione all'avvio), the program without a console window and with its output in a log file, never started twice.
 - Opened the settings on the right tab when a coordinate is missing.
+- Made Latte (light) the default theme; a theme chosen before is kept.
 - Fixed a range in the Oggi view marking the wrong row as sent: the visual index was used instead of the run's.
 - Published a Windows app with its own runtime on every release tag (AutoFillSuite-windows.zip): no Java and no installation needed.
 

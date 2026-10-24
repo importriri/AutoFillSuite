@@ -120,7 +120,7 @@ public class SettingsWindow extends JDialog {
         flavor.setSelectedIndex(AppTheme.LATTE ? 1 : 0);
         flavor.addActionListener(e -> {
             String chosen = flavor.getSelectedIndex() == 1 ? "latte" : "mocha";
-            if (chosen.equals(cfg.get(SettingsManager.UI_FLAVOR, "mocha"))) return;
+            if (chosen.equals(cfg.get(SettingsManager.UI_FLAVOR, "latte"))) return;
             save(SettingsManager.UI_FLAVOR, chosen);
             JOptionPane.showMessageDialog(this,
                 "Il tema si applica al prossimo avvio dell'app.",
@@ -296,9 +296,10 @@ public class SettingsWindow extends JDialog {
         Page p = new Page();
         p.section("Posizioni");
         p.coordRow("Casella Cancella", SettingsManager.DEL_COORD_X, SettingsManager.DEL_COORD_Y,
-                   "il campo del numero di serie nel riquadro Delete del portale");
+                   "il campo del numero di serie nel riquadro Delete del portale: il robot incolla "
+                   + "l'etichetta e preme INVIO, il portale la cancella e svuota il campo");
         p.coordRow("Tasto DELETE", SettingsManager.DEL_BUTTON_X, SettingsManager.DEL_BUTTON_Y,
-                   "il bottone rosso DELETE: il portale cancella subito, senza chiedere");
+                   "serve solo se accendi «Cancella col click su DELETE» qui sotto");
         p.section("Tempi");
         p.spinRow("Attesa avvio", intSp(SettingsManager.DEL_WAIT, 3, 0, 10), "s",
                   "dopo CANCELLA DAL PORTALE: il tempo di togliere la mano dal mouse");
@@ -306,13 +307,18 @@ public class SettingsWindow extends JDialog {
                   "quanto il sito ci mette a dare il focus al campo");
         p.spinRow("Attesa dopo DELETE", intSp(SettingsManager.DEL_AFTER, 600, 100, 10000), "ms",
                   "alzalo se il portale è lento a cancellare");
-        p.spinRow("Pausa tra le etichette", intSp(SettingsManager.DEL_PAUSE, 800, 100, 10000), "ms", "");
+        p.spinRow("Pausa tra le etichette", intSp(SettingsManager.DEL_PAUSE, 300, 0, 10000), "ms", "");
         p.section("Comportamento");
         JCheckBox now = check("Cancella subito a ogni INVIO",
             cfg.getBool(SettingsManager.DEL_IMMEDIATE, false));
         now.addActionListener(e -> save(SettingsManager.DEL_IMMEDIATE, now.isSelected()));
         p.row(now, "spenta: le etichette si mettono in lista e partono col tasto rosso. "
                  + "Accesa: ogni etichetta sparata parte da sola, dopo l'attesa avvio");
+        JCheckBox click = check("Cancella col click su DELETE invece che con INVIO",
+            cfg.getBool(SettingsManager.DEL_BY_CLICK, false));
+        click.addActionListener(e -> save(SettingsManager.DEL_BY_CLICK, click.isSelected()));
+        p.row(click, "spenta (normale): etichetta incollata e INVIO. Accendila solo se un giorno "
+                   + "il portale smette di cancellare con INVIO: serve la coordinata del Tasto DELETE");
         JCheckBox ver = check("Controlla sul portale a fine cancellazione",
             cfg.getBool(SettingsManager.DEL_VERIFY_AUTO, true));
         ver.addActionListener(e -> save(SettingsManager.DEL_VERIFY_AUTO, ver.isSelected()));

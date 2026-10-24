@@ -348,10 +348,14 @@ under the fixed window height (the smoke walker caught it).
 
 ## Cancella (`DeleteModePanel`, `DeleteBurst`)
 
-The portal deletes on the DELETE click with no question, and the label
-disappears from its export. `DeleteBurst` is `PairBurst`'s sequence for that
-form: double click on the serial field, paste, click DELETE, the mouse checked
-between every step; the DELETE click is the point of no return. The list of
+The portal deletes on ENTER in its Delete field (and empties the field), with
+no question, and the label disappears from its export. `DeleteBurst` is
+`PairBurst`'s sequence for that form: double click on the serial field, paste,
+ENTER — or a click on DELETE where a portal wants it (`del.byClick`) — the
+mouse checked between every step; ENTER is the point of no return. A
+Quantità above 1 lists a range with `RegistrationVerifier.expectedCodes`, the
+one Intervallo uses, so the 999 rule is the same; a range never fires by
+itself, even in immediate mode. The list of
 labels to delete lives in the panel and in its own file
 (`AutoFillSuite_cancella_lista.txt`, rewritten whole at every change), not in
 the results table: another mode starting a run would have moved the table's

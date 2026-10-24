@@ -25,13 +25,13 @@ Questo stesso testo si legge dentro l'app: **Impostazioni > Manuale**.
    - **Impostazioni > A scansione**: il primo campo del form, per la modalità
      a due QR.
    - **Impostazioni > Cancella**: il campo del numero di serie nel riquadro
-     **Delete** del portale («Casella Cancella») e il tasto rosso **DELETE**.
+     **Delete** del portale («Casella Cancella»).
 4. **Impostazioni > Verifica > Cartella download**: la cartella dove il
    browser salva l'export CSV del portale. **Cartella report**: dove finisce
    il report giornaliero per l'ufficio qualità. **Prefisso export**: l'inizio
    del nome dei file scaricati (lascia il default salvo cambi del portale).
-5. Il tema (Mocha scuro / Latte chiaro) è nell'intestazione delle
-   impostazioni. Si applica al prossimo avvio.
+5. Il tema (Latte chiaro, quello di partenza / Mocha scuro) è
+   nell'intestazione delle impostazioni. Si applica al prossimo avvio.
 6. **Impostazioni > Giornata > Postazione all'avvio**: incolla l'indirizzo
    del portale e scegli il programma della stampante (il file `.exe`, non il
    collegamento). Dal giorno dopo, il primo avvio della giornata apre il
@@ -379,16 +379,20 @@ AutoFillSuite tiene una copia di ogni file importato nella cartella dei report
 ## 9. CANCELLA (etichette rovinate)
 
 Per le etichette rovinate o buttate, da togliere dal portale. Il portale le
-cancella al click su **DELETE**, senza chiedere, e l'etichetta sparisce
-dall'export.
+cancella quando nel suo campo Delete premi **INVIO**, senza chiedere: svuota il
+campo e l'etichetta sparisce dall'export.
 
 1. **CANCELLA** nel selettore in alto.
 2. Spara (o scrivi) l'etichetta e premi INVIO: entra in **lista** e il campo
-   si svuota. Puoi metterne quante vuoi. **Togli** toglie quella selezionata,
-   **Svuota** tutta la lista: il portale non viene toccato.
+   si svuota. Puoi metterne quante vuoi. Per un pacco intero usa
+   **Quantità**, come nell'Intervallo: spara la prima, metti per esempio 20 e
+   INVIO, ed entrano in lista la prima e le 19 dopo. La quantità torna a 1 da
+   sola dopo ogni INVIO. **Togli** toglie quella selezionata, **Svuota** tutta
+   la lista: il portale non viene toccato.
 3. Premi il tasto rosso **CANCELLA DAL PORTALE (n)**. Il robot aspetta il
    conto (**PARTO TRA 3s**: togli la mano dal mouse), poi per ogni etichetta
-   clicca la Casella Cancella, incolla il codice e preme DELETE.
+   clicca la Casella Cancella, incolla il codice e preme INVIO, una dopo
+   l'altra.
 4. A fine lista l'app fa un **Export CSV** e controlla che le etichette non ci
    siano più: **CANCELLATE E CONTROLLATE**. Quelle ancora presenti diventano
    rosse (**ANCORA SUL PORTALE**): rimettile in lista e riprova. **Verifica**
@@ -400,14 +404,18 @@ Le sicure:
   metterla in lista l'app chiede, dicendo quando e con che lotto.
 - **Un lotto** sparato nel campo viene rifiutato («Questo è un LOTTO»), se hai
   descritto i due QR in **Impostazioni > A scansione**.
-- **Mouse mosso**: prima del DELETE non si cancella niente e il robot si
-  ferma; dopo il DELETE l'etichetta è cancellata e il robot si ferma lo stesso.
+- **Mouse mosso**: prima dell'INVIO non si cancella niente e il robot si
+  ferma; dopo l'INVIO l'etichetta è cancellata e il robot si ferma lo stesso.
+- **Un intervallo non parte mai da solo**, nemmeno con «Cancella subito»:
+  prima lo vedi in lista, poi premi il tasto rosso.
 - **La lista è salvata su disco** (`AutoFillSuite_cancella_lista.txt`): se
   chiudi l'app, la ritrovi uguale.
 
 Un'etichetta cancellata esce dal conteggio di **OGGI** e riempie il suo posto
 nella numerazione: non è più un buco. In **Impostazioni > Cancella** puoi
-anche far partire il robot a ogni INVIO, senza tasto rosso.
+anche far partire il robot a ogni INVIO (etichetta singola), senza tasto
+rosso; e, se un giorno il portale smettesse di cancellare con INVIO, farlo
+cliccare sul tasto **DELETE** (serve la sua coordinata).
 
 ## 10. La giornata: buchi, riapertura, postazione
 

@@ -4,12 +4,15 @@ import java.awt.Point;
 
 /**
  * One label deleted from the portal: double click on the serial field of the
- * Delete form, paste the label, click DELETE. The portal deletes at once, no
- * question asked, and the label disappears from its CSV export.
+ * Delete form, paste the label, press ENTER (the portal deletes and empties
+ * the field) — or, where a portal wants it, click DELETE instead of ENTER. The
+ * portal deletes at once, no question asked, and the label disappears from
+ * its CSV export.
  *
- * The mouse is checked between every step, like {@link PairBurst}: the click
- * on DELETE is the point of no return. Before it nothing is deleted; after it
- * the label IS gone, and the robot stops anyway if the operator took the mouse.
+ * The mouse is checked between every step, like {@link PairBurst}: ENTER (or
+ * the DELETE click) is the point of no return. Before it nothing is deleted;
+ * after it the label IS gone, and the robot stops anyway if the operator took
+ * the mouse.
  */
 public final class DeleteBurst {
 
@@ -39,8 +42,8 @@ public final class DeleteBurst {
 
     /**
      * @param field   the serial field of the Delete form
-     * @param button  the DELETE button
-     * @param before  run right before the DELETE click; if it throws, nothing is clicked
+     * @param button  the DELETE button, or null: ENTER in the field deletes
+     * @param before  run right before ENTER (or the click); if it throws, nothing is deleted
      */
     public static Outcome run(PairBurst.Hands h, Point field, Point button, String label,
                               Timing t, boolean guarded, PairBurst.BeforeEnter before)
@@ -58,12 +61,18 @@ public final class DeleteBurst {
 
             if (before != null) before.sending();
 
-            // point of no return: the portal deletes on this click
-            h.click(button.x, button.y);
+            // point of no return: the portal deletes on this key (or click)
+            Point rest = field;
+            if (button == null) {
+                h.pressEnter();
+            } else {
+                h.click(button.x, button.y);
+                rest = button;
+            }
             clicked = true;
             h.sleep(t.after);
 
-            return guarded && h.isMouseMoved(button) ? Outcome.DELETED_THEN_GRABBED : Outcome.DELETED;
+            return guarded && h.isMouseMoved(rest) ? Outcome.DELETED_THEN_GRABBED : Outcome.DELETED;
         } catch (InterruptedException ie) {
             throw ie;
         } catch (Exception ex) {
