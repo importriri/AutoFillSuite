@@ -52,6 +52,8 @@ function ChromeLinks {
         $depth = 0
         if ($dir -eq $StartMenu) { $depth = 2 }
         foreach ($f in Get-ChildItem -Path $dir -Filter *.lnk -Recurse -Depth $depth -ErrorAction SilentlyContinue) {
+            # our own Portale icon points at chrome.exe too: it is not one of Chrome's
+            if ($f.FullName -eq $PortalLnk) { continue }
             try {
                 $l = $Shell.CreateShortcut($f.FullName)
                 if ($l.TargetPath -like '*\chrome.exe') { $out += $f.FullName }

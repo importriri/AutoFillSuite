@@ -91,7 +91,7 @@ jobs:
           $fail = 0
           function Check($what, $cond, $seen = '') { if ($cond) { Write-Host "  ok   $what" } else { Write-Host "::error::FAIL $what -- seen: $seen"; $script:fail++ } }
           $out = & "$env:RUNNER_TEMP\AutoFillSuite\prepara-postazione.ps1" -Url 'https://other.example.test/tca' -Quiet *>&1
-          $out | ForEach-Object { Write-Host $_; if ("$_" -like '*[KO]*') { Write-Host "::error::second run: $_" } }
+          $out | ForEach-Object { Write-Host $_; if ("$_" -match '\[KO\]') { Write-Host "::error::second run: $_" } }
           $desk = [Environment]::GetFolderPath('Desktop')
           $sh = New-Object -ComObject WScript.Shell
           $c = $sh.CreateShortcut((Join-Path $desk 'Google Chrome.lnk'))
@@ -99,7 +99,7 @@ jobs:
           $kept = @(Get-ChildItem "$env:LOCALAPPDATA\AutoFillSuite-icone-originali" -Filter *.lnk)
           Check 'and keeps the very first original' ($kept.Count -eq 1) ($kept.Name -join ', ')
           $out = & "$env:RUNNER_TEMP\AutoFillSuite\prepara-postazione.ps1" -Undo -Quiet *>&1
-          $out | ForEach-Object { Write-Host $_; if ("$_" -like '*[KO]*') { Write-Host "::error::undo: $_" } }
+          $out | ForEach-Object { Write-Host $_; if ("$_" -match '\[KO\]') { Write-Host "::error::undo: $_" } }
           $c = $sh.CreateShortcut((Join-Path $desk 'Google Chrome.lnk'))
           Check 'undo puts the Chrome icon back' ($c.Arguments -eq '--profile-directory="Default"') $c.Arguments
           Check 'undo removes the Portale icon' (-not (Test-Path (Join-Path $desk 'Portale Lifecycle.lnk')))
