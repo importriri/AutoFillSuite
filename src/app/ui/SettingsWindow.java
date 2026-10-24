@@ -348,23 +348,18 @@ public class SettingsWindow extends JDialog {
         url.setText(cfg.get(SettingsManager.STATION_PORTAL_URL, ""));
         saveOnBlur(url, SettingsManager.STATION_PORTAL_URL);
         p.fieldRow("Indirizzo portale", url, "copialo dalla barra del browser quando il portale è aperto");
+        JTextField web = AppTheme.field();
+        web.setText(cfg.get(SettingsManager.STATION_BROWSER, ""));
+        saveOnBlur(web, SettingsManager.STATION_BROWSER);
+        p.fieldRow("Browser", exeRow(web, SettingsManager.STATION_BROWSER, "Browser del portale (.exe)",
+                   new File(System.getenv("ProgramFiles") == null ? "C:\\Program Files" : System.getenv("ProgramFiles"))),
+                   "vuoto = il browser predefinito. Es. ...\\Google\\Chrome\\Application\\chrome.exe");
         JTextField proxy = AppTheme.field();
         proxy.setText(cfg.get(SettingsManager.STATION_PROXY_PATH, ""));
         saveOnBlur(proxy, SettingsManager.STATION_PROXY_PATH);
-        JButton browse = AppTheme.secondary("Sfoglia...", null);
-        browse.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser(proxy.getText().isEmpty()
-                ? new File(System.getProperty("user.home"), "Desktop") : new File(proxy.getText()));
-            fc.setDialogTitle("Programma della stampante (.exe)");
-            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                proxy.setText(fc.getSelectedFile().getAbsolutePath());
-                save(SettingsManager.STATION_PROXY_PATH, proxy.getText());
-            }
-        });
-        JPanel proxyRow = new JPanel(new BorderLayout(6, 0));
-        proxyRow.setOpaque(false);
-        proxyRow.add(proxy, BorderLayout.CENTER);
-        proxyRow.add(browse, BorderLayout.EAST);
+        JPanel proxyRow = exeRow(proxy, SettingsManager.STATION_PROXY_PATH,
+                                 "Programma della stampante (.exe)",
+                                 new File(System.getProperty("user.home"), "Desktop"));
         p.fieldRow("Programma stampa", proxyRow,
                    "il .exe che il portale usa per stampare (es. Alpitronic.ZebraPrinter.Proxy.App.exe)");
         p.spinRow("Porta del programma", intSp(SettingsManager.STATION_PROXY_PORT, 8889, 1, 65535), "",
@@ -376,6 +371,24 @@ public class SettingsWindow extends JDialog {
         });
         p.row(now, "");
         return p.panel;
+    }
+
+    /** A path field with its "Sfoglia..." button; the choice is saved at once. */
+    private JPanel exeRow(final JTextField tf, final String key, final String title, final File start) {
+        JButton browse = AppTheme.secondary("Sfoglia...", null);
+        browse.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser(tf.getText().isEmpty() ? start : new File(tf.getText()));
+            fc.setDialogTitle(title);
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                tf.setText(fc.getSelectedFile().getAbsolutePath());
+                save(key, tf.getText());
+            }
+        });
+        JPanel row = new JPanel(new BorderLayout(6, 0));
+        row.setOpaque(false);
+        row.add(tf, BorderLayout.CENTER);
+        row.add(browse, BorderLayout.EAST);
+        return row;
     }
 
     /** A pattern that does not compile is worse than none: say so, then ignore it. */
@@ -633,21 +646,55 @@ public class SettingsWindow extends JDialog {
         void hint(String text) {
             g.gridx = 0; g.gridy = y++; g.gridwidth = 3; g.weightx = 1;
             g.insets = new Insets(10, 0, 2, 0);
-            panel.add(AppTheme.hint(text), g);
+            panel.add(wrapHint(text), g);
             g.insets = new Insets(2, 0, 2, 6);
         }
 
         private void hintUnder(String text) {
             g.gridx = 0; g.gridy = y++; g.gridwidth = 3; g.weightx = 1;
             g.insets = new Insets(0, 2, 6, 0);
-            panel.add(AppTheme.hint(text), g);
+            panel.add(wrapHint(text), g);
             g.insets = new Insets(2, 0, 2, 6);
         }
     }
 
+    /**
+     * A hint that wraps to the width of its page instead of pushing the page
+     * wider than the window: a long hint used to hide the end of every row
+     * (the "Sfoglia..." buttons) behind a horizontal scroll bar.
+     */
+    static JTextArea wrapHint(String text) {
+        JTextArea t = new JTextArea(text) {
+            @Override public Dimension getPreferredSize() {
+                return new Dimension(40, super.getPreferredSize().height);
+            }
+            @Override public Dimension getMinimumSize() { return getPreferredSize(); }
+        };
+        t.setLineWrap(true);
+        t.setWrapStyleWord(true);
+        t.setEditable(false);
+        t.setFocusable(false);
+        t.setOpaque(false);
+        t.setHighlighter(null);
+        t.setBorder(BorderFactory.createEmptyBorder());
+        t.setFont(AppTheme.F_SMALL);
+        t.setForeground(AppTheme.OVERLAY);
+        return t;
+    }
+
+    /** A page as wide as the window, never wider: it scrolls only up and down. */
+    private static final class WidthTracking extends JPanel implements Scrollable {
+        WidthTracking() { super(new BorderLayout()); }
+        @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+        @Override public int getScrollableUnitIncrement(Rectangle r, int o, int d) { return 16; }
+        @Override public int getScrollableBlockIncrement(Rectangle r, int o, int d) { return 96; }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
+
     /** Keeps a page top-aligned and scrollable if the window shrinks. */
     private JScrollPane page(JPanel content) {
-        JPanel wrap = new JPanel(new BorderLayout());
+        JPanel wrap = new WidthTracking();
         wrap.setBackground(AppTheme.SURFACE0);
         wrap.add(content, BorderLayout.NORTH);
         JScrollPane sc = new JScrollPane(wrap);

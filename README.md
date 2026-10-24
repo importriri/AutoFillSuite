@@ -30,7 +30,10 @@ Every release ships two files:
   `AutoFillSuite.exe`. It carries its own trimmed Java runtime: no Java and no
   installation, so it runs on a locked-down PC without administrator rights.
   The executable is not signed: Windows SmartScreen may ask once ("More info",
-  then "Run anyway").
+  then "Run anyway"). Next to it, **`PREPARA-POSTAZIONE.bat`** sets up a
+  workstation in seconds: portal address from the clipboard, Chrome and the
+  print program found by themselves, AutoFillSuite started with Windows.
+  `ANNULLA-POSTAZIONE.bat` undoes it.
 - **`AutoFillSuite.jar`** — for a PC that already has Java 8 or newer.
 
 The release workflow builds both: the JAR through `verify.sh`, then `jlink`

@@ -224,7 +224,15 @@ public final class AppTheme {
     public static JSpinner spinnerInt(int value, int min, int max) {
         int v = Math.max(min, Math.min(max, value));
         JSpinner sp = new JSpinner(new SpinnerNumberModel(v, min, max, 1));
+        // no thousands separator, and room for every digit: a port 8889 used
+        // to read "8,88" — grouped, then cut to four columns
+        sp.setEditor(new JSpinner.NumberEditor(sp, "#"));
         styleSpinner(sp);
+        JComponent ed = sp.getEditor();
+        if (ed instanceof JSpinner.DefaultEditor) {
+            ((JSpinner.DefaultEditor) ed).getTextField()
+                .setColumns(Math.max(4, Math.min(6, String.valueOf(max).length())));
+        }
         return sp;
     }
 

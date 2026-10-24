@@ -549,7 +549,8 @@ Plain-JDK harnesses: `main` + `check(name, condition)` + exit code. Each suite w
 | GapFinderTest | holes per type with their codes; jumps are not missing work; zeros kept; 7 and 007 not neighbours | — (new: the holes of the day) |
 | DayRestoreTest | a reopened app reads the day back: count, day view, holes in red; a deleted label fills its place; a queued one too; the holes on disk | a closed app starting from zero |
 | DeleteModeTest | list, countdown, field/paste/DELETE, export check, day count; a label registered today asks; a lot refused; mouse before DELETE deletes nothing; the list survives a close; still on the portal is red; immediate mode | — (new mode) |
-| StationTest | portal and print program once a day, never twice, from its folder, output to a log; quiet when never configured | a frozen print console; an operator who never finds the portal open |
+| StationTest | portal and print program once a day, never twice, from its folder, output to a log; the chosen browser, else the default one; quiet when never configured | a frozen print console; an operator who never finds the portal open, or finds it in a browser without its permissions |
+| SettingsFitTest | every settings page fits the window across (hints wrap); integer spinners read whole | a "Sfoglia..." button behind a scroll bar; a port that reads "8,88" |
 | WindowWatchTest | the rule (warn idle, move working, wait mid-burst, warn only with moving off); the real window warns, stays, then steps aside | the window parked on Casella 1 after the run started |
 | ScanTabSupportTest | TAB submits only on the marked QR 2; QR 1, Shift+TAB, other fields untouched; a third field breaks nothing | a scanner with a TAB suffix; the "exactly two fields" rule |
 | SpinnerCommitTest | on-screen number = executed number | chose 20, printed 30 |

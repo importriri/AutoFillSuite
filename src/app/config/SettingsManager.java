@@ -188,6 +188,7 @@ public class SettingsManager {
     // Postazione — what the first start of the day opens
     public static final String STATION_AUTO       = "station.autoStart"; // open portal and proxy at the first start
     public static final String STATION_PORTAL_URL = "station.portalUrl";
+    public static final String STATION_BROWSER    = "station.browserPath"; // the browser's .exe, "" = the default browser
     public static final String STATION_PROXY_PATH = "station.proxyPath"; // the print proxy's .exe
     public static final String STATION_PROXY_PORT = "station.proxyPort";
     public static final String STATION_LAST_DAY   = "station.lastDay";   // the day the station was last prepared

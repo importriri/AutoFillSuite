@@ -33,9 +33,11 @@ Questo stesso testo si legge dentro l'app: **Impostazioni > Manuale**.
 5. Il tema (Latte chiaro, quello di partenza / Mocha scuro) è
    nell'intestazione delle impostazioni. Si applica al prossimo avvio.
 6. **Impostazioni > Giornata > Postazione all'avvio**: incolla l'indirizzo
-   del portale e scegli il programma della stampante (il file `.exe`, non il
-   collegamento). Dal giorno dopo, il primo avvio della giornata apre il
-   portale e accende la stampante da solo (vedi §10).
+   del portale, scegli il browser (`chrome.exe`; vuoto = quello predefinito)
+   e il programma della stampante (il file `.exe`, non il collegamento). Dal
+   giorno dopo, il primo avvio della giornata apre il portale e accende la
+   stampante da solo (vedi §10). Più veloce: **PREPARA-POSTAZIONE.bat**,
+   accanto a `AutoFillSuite.exe`, fa tutto questo da solo (vedi §10).
 
 Se manca una coordinata, l'app te lo dice e apre da sola le impostazioni sul
 tab giusto.
@@ -447,3 +449,10 @@ programma della stampante, se non è già acceso. Il programma parte **senza
 finestra** (il suo log va in `AutoFillSuite_stampa_log.txt`): una finestra
 nera cliccata per sbaglio si mette in «Seleziona» e blocca la stampa. **Prepara
 la postazione adesso** fa la stessa cosa quando vuoi.
+
+**PREPARA-POSTAZIONE.bat** (nella cartella di `AutoFillSuite.exe`, senza
+permessi di amministratore): copia l'indirizzo del portale dalla barra di
+Chrome, chiudi AutoFillSuite, doppio clic sul file e INVIO. Trova da solo
+Chrome e il programma della stampante, li scrive in queste impostazioni,
+mette AutoFillSuite in avvio automatico con Windows e fa aprire il portale
+alle icone di Chrome. **ANNULLA-POSTAZIONE.bat** rimette tutto com'era.

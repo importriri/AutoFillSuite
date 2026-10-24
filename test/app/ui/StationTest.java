@@ -79,6 +79,31 @@ public final class StationTest {
         day[0] = "2026-10-26";
         check("switched off: nothing at the start", Station.prepare(false) == null);
 
+        cfg.set(SettingsManager.STATION_AUTO, true);
+        cfg.set(SettingsManager.STATION_PROXY_PATH, exe.getPath());
+        File chromeDir = new File(home, "Chrome/Application");
+        chromeDir.mkdirs();
+        File chrome = new File(chromeDir, "chrome.exe");
+        Files.write(chrome.toPath(), new byte[] { 1 });
+        cfg.set(SettingsManager.STATION_BROWSER, chrome.getPath());
+        cfg.save();
+        int before = opened.size(), launched = started.size();
+        said = Station.prepare(true);
+        check("a chosen browser opens the portal, not the default one", opened.size() == before
+              && started.size() == launched + 2
+              && started.get(launched).get(0).equals(chrome.getAbsolutePath())
+              && started.get(launched).get(1).equals("https://lifecycle.example.test/supplier/tca"));
+        check("and says which", said.contains("Portale aperto in chrome.exe"));
+
+        cfg.set(SettingsManager.STATION_BROWSER, new File(chromeDir, "gone.exe").getPath());
+        cfg.save();
+        said = Station.prepare(true);
+        check("a browser that is gone falls back to the default one, and says so",
+              opened.size() == before + 1 && said.contains("predefinito") && said.contains("non trovato"));
+
+        cfg.set(SettingsManager.STATION_BROWSER, "");
+        cfg.save();
+
         List<String> lnk = Station.command(new File("C:/Desktop/Stampa - collegamento.lnk"));
         check("a shortcut is opened through Explorer", "explorer.exe".equals(lnk.get(0)) && lnk.size() == 2);
 

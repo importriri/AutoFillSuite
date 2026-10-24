@@ -179,8 +179,11 @@ Deve succedere:
 
 ## 14. Postazione all'avvio (sul PC nuovo)
 
-Impostazioni > **Giornata**: incollare l'indirizzo del portale e scegliere il
-`.exe` del programma della stampante. Premere **Prepara la postazione adesso**.
+Copiare l'indirizzo del portale dalla barra di Chrome, chiudere AutoFillSuite,
+doppio clic su **PREPARA-POSTAZIONE.bat** (accanto a `AutoFillSuite.exe`),
+INVIO, poi INVIO di nuovo per aprire AutoFillSuite. In alternativa, a mano:
+Impostazioni > **Giornata**, indirizzo, browser e `.exe` della stampante, poi
+**Prepara la postazione adesso**.
 
 Deve succedere:
 - il portale si apre nel browser;

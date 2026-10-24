@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 — 2026-10-24
+
+- Added PREPARA-POSTAZIONE.bat next to AutoFillSuite.exe: with the portal's address copied from Chrome, it finds Chrome and the print program, writes them into Giornata > Postazione all'avvio, starts AutoFillSuite with Windows and makes Chrome's icons open the portal, without administrator rights. ANNULLA-POSTAZIONE.bat puts everything back. It runs on a real Windows runner on every change.
+- Opened the portal in the browser chosen in Giornata > Browser, not only in the system default one, which on a company PC may be a browser without the portal's permissions.
+- Wrapped the long hints of the settings: every page fits the window across again, and no Sfoglia... button hides behind a horizontal scroll bar.
+- Showed whole numbers without a thousands separator: the print program's port 8889 read "8,88".
+
 ## 1.3.0 — 2026-10-24
 
 - Counted down before the robot's first move after REGISTRA TUTTO, RIPRENDI and the Da file lever: the hand leaving the mouse tripped the fail-safe at once. The lever turns into ANNULLA AVVIO meanwhile; the seconds are in A scansione > Attesa avvio.

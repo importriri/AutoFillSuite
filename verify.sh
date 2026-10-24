@@ -68,6 +68,7 @@ java -cp out app.ui.TextFitTest
 java -cp out app.ui.BannerFitTest
 java -cp out app.ui.HudPositionTest
 java -cp out app.ui.StationTest
+java -cp out app.ui.SettingsFitTest
 java -cp out app.ui.WindowWatchTest
 java -cp out app.ui.StartupSmokeTest
 java -cp out app.ui.StartupSmokeTest --saved

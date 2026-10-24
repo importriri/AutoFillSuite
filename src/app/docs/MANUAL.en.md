@@ -32,9 +32,11 @@ The same text is readable inside the app: **Impostazioni > Manuale**.
 5. Theme (Latte light, the default / Mocha dark) is in the settings header.
    It applies at the next launch.
 6. **Impostazioni > Giornata > Postazione all'avvio**: paste the portal's
-   address and pick the print program (the `.exe` file, not the shortcut).
-   From the next day on, the first start of the day opens the portal and
-   starts the printer by itself (see section 10).
+   address, pick the browser (`chrome.exe`; empty = the default one) and the
+   print program (the `.exe` file, not the shortcut). From the next day on,
+   the first start of the day opens the portal and starts the printer by
+   itself (see section 10). Faster: **PREPARA-POSTAZIONE.bat**, next to
+   `AutoFillSuite.exe`, does all of this by itself (see section 10).
 
 When a coordinate is missing, the app says so and opens the settings on the
 right tab.
@@ -435,3 +437,10 @@ print program, unless it already runs. The program starts **without a
 window** (its log goes to `AutoFillSuite_stampa_log.txt`): a black console
 window clicked by mistake goes into "Select" mode and freezes printing.
 **Prepara la postazione adesso** does the same whenever you want.
+
+**PREPARA-POSTAZIONE.bat** (in the folder of `AutoFillSuite.exe`, no
+administrator rights): copy the portal's address from Chrome's address bar,
+close AutoFillSuite, double-click the file and press ENTER. It finds Chrome
+and the print program, writes them into these settings, starts AutoFillSuite
+with Windows and makes Chrome's icons open the portal.
+**ANNULLA-POSTAZIONE.bat** puts everything back.

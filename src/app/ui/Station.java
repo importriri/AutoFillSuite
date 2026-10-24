@@ -25,7 +25,7 @@ import java.util.List;
  */
 final class Station {
 
-    /** Opens a web address; a test records it instead. */
+    /** Opens a web address in the default browser; a test records it instead. */
     interface Browser { void open(String url) throws Exception; }
     /** Starts a program; a test records it instead. */
     interface Launcher { void start(List<String> command, File dir, File log) throws IOException; }
@@ -74,9 +74,27 @@ final class Station {
         String url = cfg.get(SettingsManager.STATION_PORTAL_URL, "").trim();
         if (url.isEmpty()) return "Portale: indirizzo non impostato (Impostazioni > Giornata)";
         if (!url.contains("://")) url = "https://" + url;
+        String path = cfg.get(SettingsManager.STATION_BROWSER, "").trim();
+        File exe = path.isEmpty() ? null : new File(path);
+        if (exe != null && exe.isFile() && !path.toLowerCase().endsWith(".lnk")) {
+            // the chosen browser, not the system default: on a company PC the
+            // default is often another browser, without the portal's permissions
+            List<String> c = new ArrayList<>();
+            c.add(exe.getAbsolutePath());
+            c.add(url);
+            try {
+                launcher.start(c, exe.getAbsoluteFile().getParentFile(),
+                               new File(app.config.AppFiles.reportDir(), "AutoFillSuite_browser_log.txt"));
+                return "Portale aperto in " + exe.getName();
+            } catch (IOException e) {
+                // fall through to the default browser
+            }
+        }
+        String why = exe == null ? "" : !exe.isFile() ? " (browser scelto non trovato: " + path + ")"
+                   : path.toLowerCase().endsWith(".lnk") ? " (scegli il .exe del browser, non l'icona)" : "";
         try {
             browser.open(url);
-            return "Portale aperto nel browser";
+            return "Portale aperto nel browser predefinito" + why;
         } catch (Exception e) {
             return "Portale NON aperto: " + e.getMessage();
         }
