@@ -56,6 +56,8 @@ public final class DeleteModeTest {
         stillOnThePortal_isRed();
         immediate_deletesAtEnter();
         quantity_listsARange_likeIntervallo();
+        fifteenToThirty_oneScanASpinnerAndTheLever();
+        theCard_fitsItsColumn();
         byClick_usesTheDeleteButton();
 
         System.out.println();
@@ -67,9 +69,12 @@ public final class DeleteModeTest {
         Portal portal = new Portal("T_001", "T_002", "T_003");
         Fixture f = fixture(portal);
         type(f.p, "T_002");
+        check("ENTER keeps the label in the field, waiting for its quantity",
+              listed(f.p).isEmpty() && fieldText(f.p).equals("T_002"));
         type(f.p, "T_003");
-        check("ENTER puts the label in the list and clears the field",
-              listed(f.p).equals(java.util.Arrays.asList("T_002", "T_003")) && fieldText(f.p).isEmpty());
+        check("a second scan sends the first to the list and waits with itself",
+              listed(f.p).equals(java.util.Arrays.asList("T_002")) && fieldText(f.p).equals("T_003"));
+        check("the lever counts both", leverText(f.p).equals("CANCELLA DAL PORTALE (2)"));
         check("nothing happens to the portal before the lever", portal.codes.size() == 3);
         lever(f.p);
         waitFor(() -> !busy(f.p), 10000);
@@ -98,9 +103,12 @@ public final class DeleteModeTest {
         final List<String> asked = new ArrayList<>();
         f.p.confirmer = m -> { asked.add(m); return false; };
         type(f.p, "R_001");
+        check("the scan alone asks nothing yet", asked.isEmpty());
+        lever(f.p);
         check("a label registered today asks first", asked.size() == 1
               && asked.get(0).contains("registrata oggi") && asked.get(0).contains("L1"));
-        check("No keeps it off the list", listed(f.p).isEmpty());
+        check("No keeps it off the list and the portal untouched",
+              listed(f.p).isEmpty() && !busy(f.p) && portal.codes.contains("R_001"));
     }
 
     private static void aLot_isRefused() throws Exception {
@@ -138,6 +146,9 @@ public final class DeleteModeTest {
         Fixture f = fixture(new Portal());
         type(f.p, "K_101");
         type(f.p, "K_102");
+        clickButton(f.p, "In lista");
+        check("In lista lists the label of the field without deleting",
+              listed(f.p).equals(java.util.Arrays.asList("K_101", "K_102")) && fieldText(f.p).isEmpty());
         Fixture again = fixture(new Portal());
         check("a closed app finds its list again", listed(again.p).equals(java.util.Arrays.asList("K_101", "K_102")));
         SwingUtilities.invokeAndWait(() -> {
@@ -188,20 +199,67 @@ public final class DeleteModeTest {
             f.rp.beginRun(1, "L7");
             f.rp.addLiveRow("Q_011", 1);
             f.p.confirmer = m -> { asked.add(m); return true; };
-            f.p.count().setValue(3);
         });
         type(f.p, "Q_010");
+        SwingUtilities.invokeAndWait(() -> f.p.count().setValue(3));
+        check("the lever counts the range before anything is listed", leverText(f.p).equals("CANCELLA DAL PORTALE (3)"));
+        clickButton(f.p, "In lista");
         check("a quantity of 3 lists the label and the two after it",
               listed(f.p).equals(java.util.Arrays.asList("Q_010", "Q_011", "Q_012")));
         check("one question names the label of the range registered today",
               asked.size() == 1 && asked.get(0).contains("Q_011") && asked.get(0).contains("L7"));
         final int[] q = { 0 };
         SwingUtilities.invokeAndWait(() -> q[0] = (Integer) f.p.count().getValue());
-        check("the quantity goes back to 1 after the ENTER", q[0] == 1);
-        SwingUtilities.invokeAndWait(() -> f.p.count().setValue(5));
+        check("the quantity goes back to 1 once listed", q[0] == 1);
         type(f.p, "Q_998");
-        check("a range past 999 is refused", !listed(f.p).contains("Q_998") && banner(f.p).contains("999"));
+        SwingUtilities.invokeAndWait(() -> f.p.count().setValue(5));
+        lever(f.p);
+        check("a range past 999 is refused, nothing starts",
+              !listed(f.p).contains("Q_998") && banner(f.p).contains("999") && !busy(f.p));
         Files.deleteIfExists(app.config.AppFiles.deleteList().toPath());
+    }
+
+    // the operator's case: labels 15 to 30 spoiled. one scan, 16, the lever
+    private static void fifteenToThirty_oneScanASpinnerAndTheLever() throws Exception {
+        Files.deleteIfExists(app.config.AppFiles.deleteList().toPath());
+        Portal portal = new Portal();
+        for (int i = 10; i <= 35; i++) portal.codes.add(String.format("Z_%03d", i));
+        Fixture f = fixture(portal);
+        type(f.p, "Z_015");
+        SwingUtilities.invokeAndWait(() -> f.p.count().setValue(16));
+        check("the lever says 16 before it is pressed", leverText(f.p).equals("CANCELLA DAL PORTALE (16)"));
+        lever(f.p);
+        waitFor(() -> !busy(f.p), 15000);
+        boolean gone = true;
+        for (int i = 15; i <= 30; i++) gone &= !portal.codes.contains(String.format("Z_%03d", i));
+        check("15 to 30 are gone from the portal", gone);
+        check("14 and 31 are still there", portal.codes.contains("Z_014") && portal.codes.contains("Z_031")
+              && portal.codes.size() == 10);
+        check("the field and the quantity are ready for the next one",
+              fieldText(f.p).isEmpty() && (Integer) f.p.count().getValue() == 1);
+        check("and the check confirms it", banner(f.p).startsWith("CANCELLATE E CONTROLLATE"));
+    }
+
+    // a card wider than its column falls into GridBag's minimum layout, which
+    // squeezed the list to a line and hid the Quantità spinner on Windows
+    private static void theCard_fitsItsColumn() throws Exception {
+        Fixture f = fixture(new Portal());
+        final boolean[] ok = { false };
+        final String[] why = { "" };
+        SwingUtilities.invokeAndWait(() -> {
+            JFrame fr = new JFrame();
+            fr.getContentPane().add(f.p);
+            fr.setSize(300, 420);
+            fr.setVisible(true);
+            fr.validate();
+            Component card = f.p.getComponent(0);
+            JSpinner sp = f.p.count();
+            ok[0] = card.getPreferredSize().width <= card.getWidth()
+                 && sp.getHeight() >= sp.getPreferredSize().height;
+            why[0] = card.getPreferredSize().width + " <= " + card.getWidth() + ", spinner " + sp.getHeight();
+            fr.dispose();
+        });
+        check("the card fits a 300 px column and the spinner keeps its height (" + why[0] + ")", ok[0]);
     }
 
     private static void byClick_usesTheDeleteButton() throws Exception {
@@ -331,6 +389,17 @@ public final class DeleteModeTest {
         final boolean[] b = { true };
         SwingUtilities.invokeAndWait(() -> b[0] = p.isBusy());
         return b[0];
+    }
+
+    private static String leverText(DeleteModePanel p) throws Exception {
+        Thread.sleep(60);
+        final String[] t = { "" };
+        SwingUtilities.invokeAndWait(() -> {
+            for (JButton b : ResultsOwnershipTest.buttons(p)) {
+                if (b.getText() != null && b.getText().startsWith("CANCELLA DAL PORTALE")) t[0] = b.getText();
+            }
+        });
+        return t[0];
     }
 
     private static String banner(DeleteModePanel p) throws Exception {

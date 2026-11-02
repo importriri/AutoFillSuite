@@ -373,16 +373,20 @@ when **ENTER** is pressed in its Delete field, with no question: it empties the
 field and the label disappears from its export.
 
 1. **CANCELLA** in the top selector.
-2. Scan (or type) the label and press ENTER: it joins the **list** and the
-   field clears. Add as many as you need. For a whole pack use **Quantità**,
-   as in Intervallo: scan the first, set for example 20 and ENTER, and the
-   first and the 19 after it join the list. The quantity goes back to 1 after
-   every ENTER. **Togli** removes the selected one, **Svuota** the whole list:
-   the portal is not touched.
-3. Press the red **CANCELLA DAL PORTALE (n)**. The robot counts down
-   (**PARTO TRA 3s**: take your hand off the mouse), then for every label it
-   clicks the Casella Cancella, pastes the code and presses ENTER, one after
-   the other.
+2. It works like **Intervallo**: scan the **first** label (ENTER confirms it
+   and leaves it in the field), set **Quantità** and press the red lever.
+   Example: 15 to 30 spoiled: scan 15, set **16**, the lever reads
+   **CANCELLA DAL PORTALE (16)**. For a single label leave 1.
+   - Scattered labels: scan the first, then the next, and so on. Every new
+     scan sends the previous one (with its quantity) to the **list**.
+   - **In lista** lists the field's label without deleting yet; **Togli**
+     removes the selected one, **Svuota** the whole list: the portal is not
+     touched. The day's **holes** reach the list from the results.
+3. Press the red **CANCELLA DAL PORTALE (n)**: it deletes the field's label
+   (with its range) and the whole list. The robot counts down (**PARTO TRA
+   3s**: take your hand off the mouse), then for every label it clicks the
+   Casella Cancella, pastes the code and presses ENTER. The quantity goes back
+   to 1.
 4. At the end of the list the app makes an **Export CSV** and checks the
    labels are gone: **CANCELLATE E CONTROLLATE**. Labels still present turn red
    (**ANCORA SUL PORTALE**): put them back in the list and try again.
@@ -390,14 +394,14 @@ field and the label disappears from its export.
 
 The safeties:
 
-- **A label registered today** with a lot is a good piece: before listing it
+- **A label registered today** with a lot is a good piece: before deleting it
   the app asks, saying when and with which lot.
 - **A lot** scanned into the field is refused ("Questo è un LOTTO"), when the
   two QR codes are described in **Impostazioni > A scansione**.
 - **Mouse moved**: before ENTER nothing is deleted and the robot stops; after
   ENTER the label is deleted and the robot stops anyway.
-- **A range never starts by itself**, not even with "Cancella subito": you see
-  it in the list first, then press the red lever.
+- **A range never starts by itself**, not even with "Cancella subito": only
+  the red lever starts it, and it says how many first.
 - **The list is saved on disk** (`AutoFillSuite_cancella_lista.txt`): close
   the app and you find it again as it was.
 

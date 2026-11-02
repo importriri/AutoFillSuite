@@ -385,16 +385,19 @@ cancella quando nel suo campo Delete premi **INVIO**, senza chiedere: svuota il
 campo e l'etichetta sparisce dall'export.
 
 1. **CANCELLA** nel selettore in alto.
-2. Spara (o scrivi) l'etichetta e premi INVIO: entra in **lista** e il campo
-   si svuota. Puoi metterne quante vuoi. Per un pacco intero usa
-   **Quantità**, come nell'Intervallo: spara la prima, metti per esempio 20 e
-   INVIO, ed entrano in lista la prima e le 19 dopo. La quantità torna a 1 da
-   sola dopo ogni INVIO. **Togli** toglie quella selezionata, **Svuota** tutta
-   la lista: il portale non viene toccato.
-3. Premi il tasto rosso **CANCELLA DAL PORTALE (n)**. Il robot aspetta il
-   conto (**PARTO TRA 3s**: togli la mano dal mouse), poi per ogni etichetta
-   clicca la Casella Cancella, incolla il codice e preme INVIO, una dopo
-   l'altra.
+2. Funziona come l'**Intervallo**: spara la **prima** etichetta (INVIO la
+   conferma e la lascia nel campo), imposta la **Quantità** e premi il tasto
+   rosso. Esempio: rovinate dalla 15 alla 30: spari la 15, metti **16**, il
+   tasto dice **CANCELLA DAL PORTALE (16)**. Per una sola etichetta lasci 1.
+   - Più etichette sparse: spara la prima, poi la seconda, e così via. Ogni
+     nuova sparata manda quella di prima (con la sua quantità) in **lista**.
+   - **In lista** mette in lista quella del campo senza cancellare ancora;
+     **Togli** toglie quella selezionata, **Svuota** tutta la lista: il portale
+     non viene toccato. I **buchi** del giorno arrivano in lista dai Risultati.
+3. Premi il tasto rosso **CANCELLA DAL PORTALE (n)**: cancella l'etichetta del
+   campo (con il suo intervallo) e tutta la lista. Il robot aspetta il conto
+   (**PARTO TRA 3s**: togli la mano dal mouse), poi per ogni etichetta clicca
+   la Casella Cancella, incolla il codice e preme INVIO. La quantità torna a 1.
 4. A fine lista l'app fa un **Export CSV** e controlla che le etichette non ci
    siano più: **CANCELLATE E CONTROLLATE**. Quelle ancora presenti diventano
    rosse (**ANCORA SUL PORTALE**): rimettile in lista e riprova. **Verifica**
@@ -403,13 +406,13 @@ campo e l'etichetta sparisce dall'export.
 Le sicure:
 
 - **Un'etichetta registrata oggi** con un lotto è un pezzo buono: prima di
-  metterla in lista l'app chiede, dicendo quando e con che lotto.
+  cancellarla l'app chiede, dicendo quando e con che lotto.
 - **Un lotto** sparato nel campo viene rifiutato («Questo è un LOTTO»), se hai
   descritto i due QR in **Impostazioni > A scansione**.
 - **Mouse mosso**: prima dell'INVIO non si cancella niente e il robot si
   ferma; dopo l'INVIO l'etichetta è cancellata e il robot si ferma lo stesso.
 - **Un intervallo non parte mai da solo**, nemmeno con «Cancella subito»:
-  prima lo vedi in lista, poi premi il tasto rosso.
+  parte solo col tasto rosso, che prima ti dice quante ne cancella.
 - **La lista è salvata su disco** (`AutoFillSuite_cancella_lista.txt`): se
   chiudi l'app, la ritrovi uguale.
 

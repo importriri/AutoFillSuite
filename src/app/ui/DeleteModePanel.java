@@ -19,10 +19,14 @@ import java.util.Set;
 
 /**
  * Mode: CANCELLA — labels spoiled or thrown away, deleted from the portal.
- * Scan (or type) a label, ENTER: it joins the list and the field clears; with
- * a Quantità above 1 the label starts a range, like Intervallo (the last three
- * digits move). The big red lever deletes the whole list, after a countdown;
- * a setting deletes at every ENTER instead.
+ * It works like Intervallo: scan the first label, set Quantità, press the red
+ * lever — "15 to 30" is one scan and a 16. The last three digits move.
+ *
+ * The field holds the label being prepared; a second scan sends the first
+ * (with its quantity) to the list, so single labels can be scanned one after
+ * the other. The holes of the day reach the list from the results panel. The
+ * lever deletes the label in the field (its range) and the whole list, after
+ * a countdown; a setting deletes at every ENTER instead.
  *
  * The portal deletes when ENTER is pressed in its Delete field (it empties the
  * field too), no question asked, and the label disappears from its CSV export:
@@ -65,7 +69,9 @@ public class DeleteModePanel extends JPanel {
     private JList<String> jlist;
     private JLabel banner;
     private StatPair stats;
-    private JButton btnStart, btnVerify, btnRemove, btnClear, btnClearField;
+    private JButton btnStart, btnVerify, btnRemove, btnClear, btnClearField, btnConfirm, btnQueue;
+    /** The label confirmed in the field (ENTER), waiting for its quantity; null = none (EDT only). */
+    private String pending = null;
     private JProgressBar status;
 
     public DeleteModePanel(ResultsPanel results, RunContext ctx) {
@@ -94,10 +100,19 @@ public class DeleteModePanel extends JPanel {
         JPanel r1 = new JPanel(new BorderLayout(6, 0));
         r1.setOpaque(false);
         tfCode = AppTheme.fieldQr();
-        tfCode.setToolTipText("Spara l'etichetta rovinata: INVIO la mette in lista");
-        btnClearField = AppTheme.iconButton(Icons.cross(AppTheme.ICON, AppTheme.SUBTEXT), "Svuota il campo");
+        tfCode.setToolTipText("Spara la prima etichetta da cancellare, poi imposta la Quantità");
+        btnConfirm = AppTheme.button("", AppTheme.GREEN);
+        btnConfirm.setIcon(Icons.check(AppTheme.ICON, AppTheme.ON_ACCENT));
+        btnConfirm.setBorder(BorderFactory.createEmptyBorder(7, 11, 7, 11));
+        btnConfirm.setToolTipText("Conferma l'etichetta (come INVIO)");
+        btnClearField = AppTheme.iconButton(Icons.reset(AppTheme.ICON, AppTheme.SUBTEXT), "Svuota il campo");
+        btnClearField.setBorder(BorderFactory.createEmptyBorder(7, 11, 7, 11));
+        JPanel fieldBtns = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        fieldBtns.setOpaque(false);
+        fieldBtns.add(btnConfirm);
+        fieldBtns.add(btnClearField);
         r1.add(tfCode, BorderLayout.CENTER);
-        r1.add(btnClearField, BorderLayout.EAST);
+        r1.add(fieldBtns, BorderLayout.EAST);
         g.gridx = 1; g.weightx = 1.0;
         card.add(r1, g);
 
@@ -106,8 +121,8 @@ public class DeleteModePanel extends JPanel {
         card.add(AppTheme.label("Quantità"), g);
         spCount = AppTheme.spinnerInt(1, 1, 999);
         spCount.setToolTipText("Quante etichette consecutive da cancellare, a partire da quella sparata"
-                               + " (torna a 1 dopo ogni INVIO)");
-        spCount.addChangeListener(e -> preview());
+                               + " (es. da 15 a 30 = 16). Torna a 1 dopo ogni cancellazione");
+        spCount.addChangeListener(e -> { preview(); refresh(); });
         g.gridx = 1; g.weightx = 1.0;
         card.add(spCount, g);
 
@@ -125,9 +140,9 @@ public class DeleteModePanel extends JPanel {
         jlist.setForeground(AppTheme.TEXT);
         jlist.setSelectionBackground(AppTheme.SURFACE1);
         jlist.setSelectionForeground(AppTheme.TEXT);
-        jlist.setVisibleRowCount(4);
+        jlist.setVisibleRowCount(3);
         // an empty list asks for no height at all: a fixed row keeps the box
-        // four rows tall, so the operator sees where the labels will go
+        // three rows tall, so the operator sees where the labels will go
         jlist.setFixedCellHeight(18);
         jlist.setFocusable(false);
         jlist.addListSelectionListener(e -> { if (!e.getValueIsAdjusting()) refresh(); });
@@ -147,15 +162,18 @@ public class DeleteModePanel extends JPanel {
         card.add(btnStart, g);
 
         y++; g.gridy = y;
-        JPanel sec = new JPanel(new GridLayout(1, 3, 6, 0));
+        JPanel sec = new JPanel(new GridLayout(1, 4, 4, 0));
         sec.setOpaque(false);
+        btnQueue = AppTheme.secondary("In lista", null);
+        btnQueue.setToolTipText("Metti in lista l'etichetta del campo (con la sua Quantità) senza cancellare ancora");
         btnRemove = AppTheme.secondary("Togli", null);
         btnRemove.setToolTipText("Togli dalla lista l'etichetta selezionata (non tocca il portale)");
         btnClear  = AppTheme.secondary("Svuota", null);
         btnClear.setToolTipText("Svuota la lista (non tocca il portale)");
-        btnVerify = AppTheme.secondary("Verifica", Icons.search(AppTheme.ICON, AppTheme.SUBTEXT));
+        btnVerify = AppTheme.secondary("Verifica", null);
         btnVerify.setToolTipText("Controlla sull'export del portale che le cancellate non ci siano più");
-        for (JButton b : new JButton[] { btnRemove, btnClear, btnVerify }) b.setFocusable(false);
+        for (JButton b : new JButton[] { btnQueue, btnRemove, btnClear, btnVerify }) b.setFocusable(false);
+        sec.add(btnQueue);
         sec.add(btnRemove);
         sec.add(btnClear);
         sec.add(btnVerify);
@@ -163,33 +181,109 @@ public class DeleteModePanel extends JPanel {
 
         y++; g.gridy = y;
         status = AppTheme.progressStatus();
-        status.setString("Spara un'etichetta da cancellare.");
+        status.setString("Spara l'etichetta da cancellare.");
         card.add(status, g);
 
         tfCode.addActionListener(e -> accept());
         ScanTabSupport.markSubmitOnTab(tfCode);
-        btnClearField.addActionListener(e -> { tfCode.setText(""); tfCode.requestFocusInWindow(); });
-        btnStart.addActionListener(e -> {
-            if (running) stop(); else start();
+        btnConfirm.addActionListener(e -> accept());
+        btnClearField.addActionListener(e -> {
+            if (running) return;
+            tfCode.setText("");
+            pending = null;
+            spCount.setValue(1);
+            refresh();
+            state(AppTheme.SURFACE2, AppTheme.TEXT, "PRONTO — spara un'etichetta");
+            tfCode.requestFocusInWindow();
         });
+        btnQueue.addActionListener(e -> queuePending());
+        // the lever counts what it would delete as the field changes
+        tfCode.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { SwingUtilities.invokeLater(DeleteModePanel.this::refresh); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { SwingUtilities.invokeLater(DeleteModePanel.this::refresh); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { }
+        });
+        btnStart.addActionListener(e -> lever());
         btnRemove.addActionListener(e -> removeSelected());
         btnClear.addActionListener(e -> clearList());
         btnVerify.addActionListener(e -> verifyByHand());
         state(AppTheme.SURFACE2, AppTheme.TEXT, "PRONTO — spara un'etichetta");
+
+        // the full-width rows ask for no width of their own: one of them wider
+        // than the column (the empty list asked 256 px) sent the whole card into
+        // GridBag's minimum layout, which squeezed the list to a line and, on
+        // Windows' wider fonts, hid the Quantità spinner
+        for (Component c : card.getComponents()) {
+            GridBagConstraints k = ((GridBagLayout) card.getLayout()).getConstraints(c);
+            if (k.gridwidth >= 2 && c instanceof JComponent) {
+                int h = c.getPreferredSize().height;
+                ((JComponent) c).setPreferredSize(new Dimension(1, h));
+                ((JComponent) c).setMinimumSize(new Dimension(1, h));
+            }
+        }
+
+        // content at the top, the spare height below it
+        y++; g.gridy = y; g.weighty = 1.0; g.fill = GridBagConstraints.BOTH;
+        JPanel filler = new JPanel();
+        filler.setOpaque(false);
+        filler.setPreferredSize(new Dimension(1, 0));
+        filler.setMinimumSize(new Dimension(1, 0));
+        card.add(filler, g);
         return card;
     }
 
     // ── the list ──────────────────────────────────────────────────────────
 
-    /** ENTER on the field: the label (or its range) joins the list; in immediate mode, a single one goes. */
+    /**
+     * ENTER on the field (the scanner's own): the label is checked and waits
+     * there for its Quantità, like Intervallo. A label already waiting, with the
+     * quantity set for it, goes to the list first: singles can be scanned one
+     * after the other. In immediate mode a single label is deleted at once.
+     */
     void accept() {
+        if (running || verifying) return;
         String code = tfCode.getText().trim();
         if (code.isEmpty()) return;
         String problem = shapeProblem(code);
         if (problem != null) {
             Sounds.error();
             state(AppTheme.RED, AppTheme.ON_ACCENT, problem);
+            tfCode.selectAll();
             return;
+        }
+        if (pending != null && !pending.equals(code)) {
+            String next = code;
+            tfCode.setText(pending);
+            if (!queuePending()) {
+                tfCode.setText(next);
+                tfCode.selectAll();
+                return;
+            }
+            tfCode.setText(next);
+        }
+        pending = code;
+        tfCode.selectAll();               // the next scan replaces it
+        refresh();
+        if (cfg.getBool(SettingsManager.DEL_IMMEDIATE, false) && (Integer) spCount.getValue() == 1) {
+            if (queuePending()) start();
+            return;
+        }
+        state(AppTheme.SURFACE2, AppTheme.TEXT, "PRONTO — " + code + ": Quantità e CANCELLA");
+        preview();
+    }
+
+    /**
+     * The label of the field, with its range, into the list (one question when a
+     * label of it was registered today). False = nothing listed, the field stays.
+     */
+    boolean queuePending() {
+        String code = tfCode.getText().trim();
+        if (code.isEmpty()) return true;
+        String problem = shapeProblem(code);
+        if (problem != null) {
+            Sounds.error();
+            state(AppTheme.RED, AppTheme.ON_ACCENT, problem);
+            return false;
         }
         try { spCount.commitEdit(); } catch (java.text.ParseException ignored) { }
         int count = (Integer) spCount.getValue();
@@ -199,15 +293,17 @@ public class DeleteModePanel extends JPanel {
         } catch (IllegalArgumentException past999) {
             Sounds.error();
             state(AppTheme.RED, AppTheme.ON_ACCENT, "L'intervallo supera 999: dividilo in due");
-            return;
+            return false;
         }
         List<String> fresh = new ArrayList<>();
         for (String c : codes) if (!list.contains(c)) fresh.add(c);
         if (fresh.isEmpty()) {
-            Sounds.error();
-            state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Già in lista: " + code);
             tfCode.setText("");
-            return;
+            pending = null;
+            spCount.setValue(1);
+            refresh();
+            state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Già in lista: " + code);
+            return true;
         }
         // a label registered today with a lot is a GOOD piece on the portal:
         // deleting it is the expensive mistake, so this is the one question
@@ -232,13 +328,17 @@ public class DeleteModePanel extends JPanel {
             }
             m.append("È davvero rovinata? Verrà CANCELLATA dal portale.");
             if (!confirmer.test(m.toString())) {
-                state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Non messa in lista: " + code);
                 tfCode.setText("");
-                return;
+                pending = null;
+                spCount.setValue(1);
+                refresh();
+                state(AppTheme.YELLOW, AppTheme.ON_ACCENT, "Non messa in lista: " + code);
+                return false;
             }
         }
         for (String c : fresh) list.addElement(c);
         tfCode.setText("");
+        pending = null;
         spCount.setValue(1);              // never leave a range armed for the next scan
         tfCode.requestFocusInWindow();
         saveList();
@@ -246,9 +346,15 @@ public class DeleteModePanel extends JPanel {
         state(AppTheme.SURFACE2, AppTheme.TEXT, fresh.size() == 1 ? "IN LISTA: " + fresh.get(0)
               : "IN LISTA: " + fresh.size() + " etichette, " + RangeModePanel.rangePreview(
                     fresh.get(0), fresh.get(fresh.size() - 1)).replaceFirst("^Da ", "da "));
-        // a range waits for the lever even in immediate mode: one look first
-        if (fresh.size() == 1 && cfg.getBool(SettingsManager.DEL_IMMEDIATE, false)
-                && !running && !verifying) start();
+        return true;
+    }
+
+    /** The red lever: the field's label (and its range) joins the list, then the list goes. */
+    void lever() {
+        if (running) { stop(); return; }
+        if (verifying) return;
+        if (!tfCode.getText().trim().isEmpty() && !queuePending()) return;
+        start();
     }
 
     /** The label and the ones after it: the last three digits move, as in Intervallo. */
@@ -265,14 +371,29 @@ public class DeleteModePanel extends JPanel {
 
     /** The range in the status bar while the operator sets the quantity. */
     private void preview() {
+        if (running || verifying) return;
         String code = tfCode.getText().trim();
         int count = (Integer) spCount.getValue();
-        if (code.isEmpty() || count <= 1 || shapeProblem(code) != null) return;
+        if (code.isEmpty() || shapeProblem(code) != null) return;
         try {
             List<String> r = range(code, count);
-            status.setString(count + " da cancellare: " + RangeModePanel.rangePreview(r.get(0), r.get(r.size() - 1)));
+            status.setString(count == 1 ? "1 da cancellare: " + code
+                : count + " da cancellare: " + RangeModePanel.rangePreview(r.get(0), r.get(r.size() - 1)));
         } catch (IllegalArgumentException past999) {
             status.setString("L'intervallo supera 999");
+        }
+    }
+
+    /** How many labels the field's label (and its range) adds to the list now. */
+    private int pendingCount() {
+        String code = tfCode == null ? "" : tfCode.getText().trim();
+        if (code.isEmpty() || shapeProblem(code) != null) return 0;
+        try {
+            int n = 0;
+            for (String c : range(code, (Integer) spCount.getValue())) if (!list.contains(c)) n++;
+            return n;
+        } catch (RuntimeException past999) {
+            return 0;
         }
     }
 
@@ -649,13 +770,16 @@ public class DeleteModePanel extends JPanel {
             btnStart.setIcon(Icons.stop(AppTheme.ICON, AppTheme.ON_ACCENT));
             btnStart.setEnabled(true);
         } else {
-            btnStart.setText("CANCELLA DAL PORTALE (" + list.size() + ")");
+            int total = list.size() + pendingCount();
+            btnStart.setText("CANCELLA DAL PORTALE (" + total + ")");
             btnStart.setIcon(Icons.cross(AppTheme.ICON, AppTheme.ON_ACCENT));
-            btnStart.setEnabled(!verifying && !list.isEmpty());
+            btnStart.setEnabled(!verifying && total > 0);
         }
+        btnQueue.setEnabled(!busy && pendingCount() > 0);
+        btnConfirm.setEnabled(!busy);
         btnRemove.setEnabled(!busy && jlist.getSelectedIndex() >= 0);
         btnClear.setEnabled(!busy && !list.isEmpty());
-        spCount.setEnabled(!verifying);
+        spCount.setEnabled(!busy);
         btnVerify.setEnabled(!busy && !deletedRows.isEmpty());
         tfCode.setEnabled(!verifying);
     }

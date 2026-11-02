@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.3 — 2026-11-02
+
+- Made CANCELLA work like Intervallo: scan the first label, set Quantità, press the lever, which says how many it deletes ("15 to 30" is one scan and a 16). ENTER no longer lists the label before its quantity is set; a second scan sends the first to the list, "In lista" lists without deleting, and the day's holes still reach the list.
+- Fixed the Cancella card squeezed on Windows: the empty list asked for more width than the column, GridBag fell into its minimum layout, the list shrank to a line and the Quantità spinner could disappear.
+
 ## 1.3.2 — 2026-11-02
 
 - Found the portal's export under any name: when nothing in the download folder carries Verifica > Prefisso export, the newest fresh CSV shaped like an export (label|lot) is verified, and its name is saved as the prefix. A new PC started with the default prefix and never verified: it exported again and again, waiting for a name that never came.
