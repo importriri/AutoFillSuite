@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 — 2026-11-02
+
+- Found the portal's export under any name: when nothing in the download folder carries Verifica > Prefisso export, the newest fresh CSV shaped like an export (label|lot) is verified, and its name is saved as the prefix. A new PC started with the default prefix and never verified: it exported again and again, waiting for a name that never came.
+- Named the file that did land when it is not an export, instead of "export not arrived".
+
 ## 1.3.1 — 2026-10-24
 
 - Added PREPARA-POSTAZIONE.bat next to AutoFillSuite.exe: with the portal's address copied from Chrome, it finds Chrome and the print program, writes them into Giornata > Postazione all'avvio, starts AutoFillSuite with Windows and makes Chrome's icons open the portal, without administrator rights. ANNULLA-POSTAZIONE.bat puts everything back. It runs on a real Windows runner on every change.

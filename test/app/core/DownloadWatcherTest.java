@@ -31,6 +31,8 @@ public final class DownloadWatcherTest {
             crdownload_isIgnoredUntilRenamed();
             growingFile_isPickedOnlyComplete();
             foreignName_isIgnored();
+            exportUnderAnotherName_isFoundAndLearned();
+            baseName_dropsChromesNumber();
             newerOfTwo_wins();
             missingFolder_isALoudConfigError();
             newestExisting_picksTheLatestCompletedExport();
@@ -109,12 +111,47 @@ public final class DownloadWatcherTest {
         check("a still-growing file is returned only once complete", size == chunk.length * 3L);
     }
 
+    // a fresh CSV without the prefix and without the export's shape is not ours
     private static void foreignName_isIgnored() throws Exception {
         Path dir = caseDir();
         long t0 = System.currentTimeMillis();
         Thread.sleep(30);
-        drop(dir, "report.csv", "NOT|OURS\n");
-        check("a fresh file without the prefix is ignored", quick(dir, 300).awaitNewExport(t0) == null);
+        drop(dir, "report.csv", "Data;Ora;Esito\n1;2;3\n");
+        drop(dir, "AutoFillSuite_report_2026-11-02.csv", "A|B\n");
+        drop(dir, "notes.txt", "LBL|LOT\n");
+        check("a fresh file without the prefix or the export's shape is ignored",
+              quick(dir, 300).awaitNewExport(t0) == null);
+    }
+
+    // a new PC starts with the default prefix while the portal names its file
+    // otherwise: the export is recognised by its shape, and its name learned
+    private static void exportUnderAnotherName_isFoundAndLearned() throws Exception {
+        Path dir = caseDir();
+        drop(dir, "Export (4).csv", "OLD|X\n");
+        Thread.sleep(40);
+        final String[] learned = { null };
+        DownloadWatcher.prefixLearned = p -> learned[0] = p;
+        try {
+            long t0 = System.currentTimeMillis();
+            Thread.sleep(30);
+            Files.write(dir.resolve("Export (5).csv"),
+                        "\uFEFFSerialNumber|ProductionLot\r\nLBL001|LOT\r\n".getBytes(StandardCharsets.UTF_8));
+            Path got = quick(dir, 1500).awaitNewExport(t0);
+            check("an export under another name is found by its shape",
+                  got != null && name(got).equals("Export (5).csv"));
+            check("and its name is learned without Chrome's number", "Export".equals(learned[0]));
+            learned[0] = null;
+            Path named = new DownloadWatcher(dir, "export", 1500, 25, 60).awaitNewExport(t0);
+            check("with the learned prefix it is found by name, nothing more to learn",
+                  named != null && learned[0] == null);
+        } finally {
+            DownloadWatcher.prefixLearned = null;
+        }
+    }
+
+    private static void baseName_dropsChromesNumber() {
+        check("base name of a numbered download", "Export".equals(DownloadWatcher.baseName("Export (12).csv")));
+        check("base name of the first download", "lifecycle-export".equals(DownloadWatcher.baseName("lifecycle-export.csv")));
     }
 
     private static void newerOfTwo_wins() throws Exception {

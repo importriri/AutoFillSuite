@@ -7,6 +7,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Consumer;
 
 // finds the export chrome just downloaded, without ever trusting the filename.
 // the site always serves "demo-export.csv" and chrome dedupes to "demo-export (1).csv", "demo-export (2).csv"
@@ -20,6 +21,13 @@ public final class DownloadWatcher {
     // in-progress downloads: chrome writes "<name>.crdownload" and renames when done;
     // .part is firefox, .tmp shows up behind some proxies. never pick these up.
     private static final String[] PARTIAL_SUFFIXES = { ".crdownload", ".part", ".tmp" };
+
+    /**
+     * Told the base name of an export that arrived under another name than the
+     * configured prefix, so the next search finds it straight away. The app
+     * saves it as Impostazioni > Verifica > Prefisso export.
+     */
+    public static volatile Consumer<String> prefixLearned;
 
     private final Path downloadDir;
     private final String prefix;   // lowercase match; "" accepts anything, a prefix keeps strangers out
@@ -67,17 +75,36 @@ public final class DownloadWatcher {
 
     // newest regular file matching the prefix, born after sinceMillis, not partial.
     // newest wins, so a second export click simply supersedes the first.
+    //
+    // when nothing carries the prefix, the newest .csv shaped like an export
+    // ("<label>|<lot>" lines) is taken instead, and its name learned: a new PC
+    // starts with the default prefix, the portal names its file otherwise, and
+    // the verification used to wait for a name that never came, export after
+    // export, then give up.
     private Path newestCandidate(long sinceMillis) throws IOException {
+        Path named = newestCandidate(sinceMillis, true);
+        if (named != null || prefix.isEmpty()) return named;
+        Path shaped = newestCandidate(sinceMillis, false);
+        if (shaped != null) {
+            Consumer<String> learn = prefixLearned;
+            if (learn != null) learn.accept(baseName(shaped.getFileName().toString()));
+        }
+        return shaped;
+    }
+
+    private Path newestCandidate(long sinceMillis, boolean byName) throws IOException {
         Path best = null;
         long bestTime = sinceMillis;
         try (DirectoryStream<Path> dir = Files.newDirectoryStream(downloadDir)) {
             for (Path p : dir) {
                 String name = p.getFileName().toString().toLowerCase();
-                if (!name.startsWith(prefix) || isPartial(name)) continue;
+                if (isPartial(name)) continue;
+                if (byName && !name.startsWith(prefix)) continue;
+                if (!byName && (!name.endsWith(".csv") || name.startsWith("autofillsuite_"))) continue;
                 try {
                     if (!Files.isRegularFile(p)) continue;
                     long mtime = Files.getLastModifiedTime(p).toMillis();
-                    if (mtime > bestTime) {
+                    if (mtime > bestTime && (byName || looksLikeExport(p))) {
                         bestTime = mtime;
                         best = p;
                     }
@@ -88,6 +115,56 @@ public final class DownloadWatcher {
             }
         }
         return best;
+    }
+
+    // after a timeout: the newest file that DID land after the click, whatever
+    // its name and shape, so the message can name it instead of "nothing came"
+    public String strangerSince(long sinceMillis) {
+        String best = null;
+        long bestTime = sinceMillis;
+        try (DirectoryStream<Path> dir = Files.newDirectoryStream(downloadDir)) {
+            for (Path p : dir) {
+                try {
+                    if (!Files.isRegularFile(p)) continue;
+                    long mtime = Files.getLastModifiedTime(p).toMillis();
+                    if (mtime > bestTime) {
+                        bestTime = mtime;
+                        best = p.getFileName().toString();
+                    }
+                } catch (IOException gone) {
+                    // renamed mid-scan
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+        return best;
+    }
+
+    // the export's shape: its first line is "<something>|<something>", one pipe
+    static boolean looksLikeExport(Path file) {
+        byte[] head = new byte[512];
+        int n;
+        try (java.io.InputStream in = Files.newInputStream(file)) {
+            n = in.read(head);
+        } catch (IOException gone) {
+            return false;
+        }
+        if (n <= 0) return false;
+        String text = new String(head, 0, n, StandardCharsets.ISO_8859_1);
+        if (text.startsWith("\u00ef\u00bb\u00bf")) text = text.substring(3);   // utf-8 BOM
+        int eol = text.indexOf('\n');
+        String first = (eol < 0 ? text : text.substring(0, eol)).trim();
+        int pipe = first.indexOf('|');
+        return pipe > 0 && first.indexOf('|', pipe + 1) < 0;
+    }
+
+    // "Export (12).csv" -> "Export": the name the portal gives, before Chrome numbers it
+    static String baseName(String fileName) {
+        String b = fileName;
+        int dot = b.lastIndexOf('.');
+        if (dot > 0) b = b.substring(0, dot);
+        return b.replaceAll("\\s*\\(\\d+\\)$", "").trim();
     }
 
     private static boolean isPartial(String lowerName) {

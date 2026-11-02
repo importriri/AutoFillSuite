@@ -70,6 +70,13 @@ public class MainWindow extends JFrame implements RunContext {
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setAlwaysOnTop(true);
 
+        // an export found under another name than the prefix: remember the name
+        app.core.DownloadWatcher.prefixLearned = learned -> SwingUtilities.invokeLater(() -> {
+            if (learned.isEmpty()) return;
+            cfg.set(SettingsManager.REG_EXPORT_PREFIX, learned);
+            cfg.save();
+        });
+
         results   = new ResultsPanel(() -> setResultsOpen(false));
         rangeMode = new RangeModePanel(results, this);
         scanMode  = new ScanModePanel(results, this);

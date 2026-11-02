@@ -85,10 +85,16 @@ public final class VerificationTask implements Runnable {
                     file = watcher.newestExisting();
                 }
                 if (file == null) {
+                    String other = watcher.strangerSince(t0);
+                    if (other != null) {
+                        fail("Nella cartella download e' arrivato \"" + other + "\", ma non e' un export "
+                           + "del portale (prima riga etichetta|lotto). Controlla Impostazioni > Verifica.");
+                        return;
+                    }
                     fail(fallbackToExisting
                         ? "Nessun export trovato nella cartella download."
                         : "Export non arrivato entro il timeout. Coordinata Export giusta? "
-                        + "Sito lento? Alza il timeout nelle Impostazioni.");
+                        + "Sito lento? Chrome salva in un'altra cartella? Alza il timeout nelle Impostazioni.");
                     return;
                 }
 
